@@ -10,20 +10,21 @@ const cli = meow(
 	  $ davishacks
 
 	Options
-		--name  Your name
+		--path  Path to the project directory (defaults to current directory)
 
 	Examples
-	  $ davishacks --name=Jane
-	  Hello, Jane
+	  $ davishacks
+	  $ davishacks --path=/path/to/project
 `,
 	{
 		importMeta: import.meta,
 		flags: {
-			name: {
+			path: {
 				type: 'string',
-			},
-		},
-	},
+				default: process.cwd()
+			}
+		}
+	}
 );
 
-render(<App name={cli.flags.name} />);
+render(<App path={cli.flags.path} />);

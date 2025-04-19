@@ -13,5 +13,3 @@ docs are generated via a simple html page you can open
 docstrings are regenerated off git diffs - run before every git push or whenever you feel like your codebase could use more context
 
 feed our docstrings + docs into letta for memory retrieval
-
-
