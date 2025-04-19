@@ -2,7 +2,9 @@
 	"name": "davishacks",
 	"version": "0.0.0",
 	"license": "MIT",
-	"bin": "dist/cli.js",
+	"bin": {
+		"davishacks": "./dist/cli.js"
+	},
 	"type": "module",
 	"engines": {
 		"node": ">=16"
@@ -10,7 +12,8 @@
 	"scripts": {
 		"build": "tsc",
 		"dev": "tsc --watch",
-		"test": "prettier --check . && xo && ava"
+		"test": "prettier --check . && xo && ava",
+		"start": "node dist/cli.js"
 	},
 	"files": [
 		"dist"
@@ -19,7 +22,8 @@
 		"@google/genai": "^0.9.0",
 		"ink": "^4.1.0",
 		"meow": "^11.0.0",
-		"react": "^18.2.0"
+		"react": "^18.2.0",
+		"simple-git": "^3.22.0"
 	},
 	"devDependencies": {
 		"@sindresorhus/tsconfig": "^3.0.1",

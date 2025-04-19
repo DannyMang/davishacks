@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { FileTree } from './components/FileTree.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { DocManager } from './services/DocManager.js';
 
 interface FileNode {
 	name: string;
@@ -148,19 +149,23 @@ interface AppProps {
 	path?: string;
 }
 
-const App: React.FC<AppProps> = ({ path = process.cwd() }) => {
+const App: React.FC<AppProps> = ({ path: workspacePath = process.cwd() }) => {
 	const [fileStructure, setFileStructure] = useState<FileNode | null>(null);
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
 	const [selectedFileContent, setSelectedFileContent] = useState<string | null>(null);
+	const [selectedFileDocs, setSelectedFileDocs] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [docManager] = useState(() => new DocManager(workspacePath));
 
 	useEffect(() => {
 		debugLog('=== Starting file scan ===');
 		debugLog(`Current directory: ${process.cwd()}`);
-		debugLog(`Target path: ${path}`);
+		debugLog(`Target path: ${workspacePath}`);
 
 		try {
-			const structure = readDirectory(path);
+			// Normalize the workspace path to handle nested davishacks directory
+			const normalizedPath = workspacePath.replace(/davishacks\/davishacks/, 'davishacks');
+			const structure = readDirectory(normalizedPath);
 			debugLog('File scan completed successfully');
 			setFileStructure(structure);
 		} catch (err) {
@@ -168,29 +173,26 @@ const App: React.FC<AppProps> = ({ path = process.cwd() }) => {
 			debugLog(`Error during file scan: ${errorMsg}`);
 			setError(errorMsg);
 		}
-	}, [path]);
+	}, [workspacePath]);
 
-	const handleFileSelect = (filePath: string) => {
+	const handleFileSelect = async (filePath: string) => {
 		setSelectedFile(filePath);
-		// Find the selected file node
-		const findFile = (node: FileNode, targetPath: string): FileNode | null => {
-			if (targetPath.endsWith(node.name)) {
-				return node;
+		try {
+			// Normalize the file path
+			const normalizedPath = filePath.replace(/davishacks\/davishacks/, 'davishacks');
+			
+			// Get or generate documentation
+			let doc = docManager.getDocumentation(normalizedPath);
+			if (!doc) {
+				doc = await docManager.generateDocumentation(normalizedPath);
+				await docManager.generateHtml(); // Update HTML docs
 			}
-			if (node.children) {
-				for (const child of node.children) {
-					const found = findFile(child, targetPath);
-					if (found) return found;
-				}
-			}
-			return null;
-		};
-
-		if (fileStructure) {
-			const fileNode = findFile(fileStructure, filePath);
-			if (fileNode && fileNode.preview) {
-				setSelectedFileContent(fileNode.preview);
-			}
+			setSelectedFileContent(doc.content);
+			setSelectedFileDocs(doc.summary);
+		} catch (err) {
+			const errorMsg = err instanceof Error ? err.message : 'Failed to generate documentation';
+			debugLog(`Error generating documentation: ${errorMsg}`);
+			setError(errorMsg);
 		}
 	};
 
@@ -213,7 +215,7 @@ const App: React.FC<AppProps> = ({ path = process.cwd() }) => {
 	return (
 		<Box flexDirection="column">
 			<Box marginBottom={1}>
-				<Text bold>Documentation Browser - {path}</Text>
+				<Text bold>Documentation Browser - {workspacePath}</Text>
 			</Box>
 			<Box>
 				<Box width="50%" marginRight={2}>
@@ -227,8 +229,16 @@ const App: React.FC<AppProps> = ({ path = process.cwd() }) => {
 					{selectedFile && (
 						<>
 							<Text bold>File: {selectedFile.split('/').pop()}</Text>
+							{selectedFileDocs && (
+								<Box marginTop={1} flexDirection="column">
+									<Text bold>Documentation:</Text>
+									<Box marginLeft={1} marginTop={1}>
+										<Text>{selectedFileDocs}</Text>
+									</Box>
+								</Box>
+							)}
 							<Box marginTop={1} flexDirection="column">
-								<Text>Preview:</Text>
+								<Text bold>Preview:</Text>
 								<Box marginLeft={1} marginTop={1}>
 									<Text>{selectedFileContent || 'No preview available'}</Text>
 								</Box>

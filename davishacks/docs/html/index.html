@@ -1,0 +1,84 @@
+
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Project Documentation</title>
+            <style>
+                body { font-family: system-ui; max-width: 1200px; margin: 0 auto; padding: 20px; }
+                .file { margin-bottom: 30px; border: 1px solid #eee; padding: 20px; border-radius: 8px; }
+                pre { background: #f6f8fa; padding: 15px; border-radius: 6px; overflow-x: auto; }
+                .summary { margin: 15px 0; padding: 15px; background: #f0f7ff; border-radius: 6px; }
+            </style>
+        </head>
+        <body>
+            <h1>Project Documentation</h1>
+            <p>Last updated: 2025-04-19T23:54:57.557Z</p>
+            
+                <div class="file">
+                    <h2>davishacks/api/flash.ts</h2>
+                    <div class="summary">
+                        <h3>Summary</h3>
+                        <p>This TypeScript code file utilizes the `@google/genai` library to interact with Google's Gemini AI model, specifically `gemini-2.0-flash`, to generate text responses based on text prompts.
+
+**Main Purpose:**
+The primary purpose of the file is to send a text prompt "What is Windsurf?" to the Gemini model and print the generated text response to the console.
+
+**Key Functions:**
+
+*   **`main()` (async function):** This is the main asynchronous function that orchestrates the interaction with the Gemini AI.
+    *   It initializes the `GoogleGenAI` client using an API key fetched from environment variables.
+    *   It sends the text prompt "What is Windsurf?" to the `gemini-2.0-flash` model using `genAI.models.generateContent`.
+    *   It extracts the generated text from the response using `.text` and logs it to the console.
+    *   It includes error handling with a `try...catch` block to log any errors encountered during the process.
+
+**Important Details:**
+
+*   **Environment Variable Handling:** The code loads the Google API key from a `.env` file located one directory level above the current file (`../.env`).  It checks if the `GOOGLE_API_KEY` environment variable is set and throws an error if it's not.
+*   **Model Selection:** It specifically uses the `gemini-2.0-flash` model for text generation.
+*   **ES Module Compatibility:** The code is written using ES module syntax (`import`, `export`) and uses `fileURLToPath` and `dirname` to get the current file's directory path for loading environment variables.
+*   **Error Handling:** Includes a basic `try...catch` block to handle potential errors during the API call and log them to the console.
+</p>
+                    </div>
+                    <h3>Source Code</h3>
+                    <pre><code>import { GoogleGenAI } from "@google/genai";
+import * as dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+import path from 'path';
+
+// Get current file path in ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+// Load environment variables from .env file
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+
+const apiKey = process.env.GOOGLE_API_KEY;
+if (!apiKey) {
+    throw new Error('GOOGLE_API_KEY is not set in environment variables');
+}
+
+// Initialize the model
+const genAI =  new GoogleGenAI({ apiKey: apiKey });
+
+async function main() {
+    try {
+        // For text-only input, use the gemini-pro model
+        const response = await genAI.models.generateContent({
+            model: "gemini-2.0-flash",
+            contents: "What is Windsurf?"
+        })
+        
+        const result = await response.text
+        console.log("Response:", result);
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+main();</code></pre>
+                </div>
+            
+        </body>
+        </html>
+        
