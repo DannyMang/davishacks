@@ -77,14 +77,12 @@ export const FileTree: React.FC<FileTreeProps> = ({
 		}
 	});
 
-	const renderItem = (
-		item: {node: FileNode; path: string; level: number},
-		index: number,
-	) => {
-		const prefix = '  '.repeat(item.level);
-		const icon = item.node.type === 'directory' ? '📁' : '📄';
-		const isSelected = selectedFile === item.path;
-		const isFocusedItem = index === focusedIndex && isFocused;
+    const renderItem = (item: {node: FileNode; path: string; level: number}, index: number) => {
+        const prefix = '  '.repeat(item.level);
+        const isCommonFile = item.node.documentation === 'Common file type - preview only';
+        const icon = item.node.type === 'directory' ? '📁' : isCommonFile ? '📝' : '📄';
+        const isSelected = selectedFile === item.path;
+        const isFocusedItem = index === focusedIndex && isFocused;
 
 		return (
 			<Box key={item.path}>

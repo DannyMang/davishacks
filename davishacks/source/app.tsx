@@ -65,6 +65,19 @@ const INTERESTING_EXTENSIONS = new Set([
 	'.txt',
 ]);
 
+const COMMON_FILES = new Set([
+	'.json',
+	'.log',
+	'.md',
+	'.txt',
+	'.yml',
+	'.yaml',
+	'.env',
+	'.gitignore',
+	'LICENSE',
+	'README'
+]);
+
 const DEBUG = true;
 const LOGS_DIR = path.join(process.cwd(), 'logs');
 const LOG_FILE = path.join(LOGS_DIR, 'davishacks-debug.log');
@@ -110,20 +123,26 @@ debugLog('Logging system initialized');
  */
 const getFilePreview = (filePath: string): string => {
 	try {
+		debugLog(`Attempting to read file: ${filePath}`);
+		if (!fs.existsSync(filePath)) {
+			debugLog(`File does not exist: ${filePath}`);
+			return 'File does not exist';
+		}
 		const content = fs.readFileSync(filePath, 'utf-8');
 		const lines = content.split('\n').slice(0, 5); // Get first 5 lines
 		return lines.join('\n') + (lines.length >= 5 ? '\n...' : '');
-	} catch {
-		return 'Unable to read file content';
+	} catch (error: any) {
+		debugLog(`Error reading file ${filePath}: ${error}`);
+		return `Unable to read file content: ${error?.message || 'Unknown error'}`;
 	}
 };
 
-/**
- * Recursively reads a directory and its subdirectories to create a file tree structure.
- * @param {string} dirPath - The path to the directory to read.
- * @param {number} [level=0] - The current level of recursion (used for indentation).
- * @returns {FileNode} A FileNode object representing the directory and its contents.
- */
+const isCommonFile = (filename: string): boolean => {
+	const ext = path.extname(filename).toLowerCase();
+	const basename = path.basename(filename);
+	return COMMON_FILES.has(ext) || COMMON_FILES.has(basename);
+};
+
 const readDirectory = (dirPath: string, level = 0): FileNode => {
 	const indent = '  '.repeat(level);
 	const name = path.basename(dirPath);
@@ -178,10 +197,19 @@ const readDirectory = (dirPath: string, level = 0): FileNode => {
 		const ext = path.extname(name).toLowerCase();
 		if (!INTERESTING_EXTENSIONS.has(ext)) {
 			debugLog(`${indent}Skipping uninteresting file: ${name} (${ext})`);
+			// If it's a common file type, include it with just a preview
+			if (isCommonFile(name)) {
+				return {
+					name,
+					type: 'file',
+					preview: getFilePreview(dirPath),
+					documentation: 'Common file type - preview only'
+				};
+			}
 			return {
 				name,
 				type: 'file',
-				documentation: 'Not a supported file type',
+				documentation: 'Not a supported file type'
 			};
 		}
 
@@ -234,6 +262,7 @@ const GenerateMode: React.FC<{
 		);
 		return new DocManager(normalizedPath);
 	});
+	const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
 	const parser = new Parser();
 
@@ -306,14 +335,29 @@ const GenerateMode: React.FC<{
 		}
 	}, [workspacePath, docManager]);
 
-	/**
-	 * Handles the selection of a file in the file tree, loading its content and documentation.
-	 * @param {string} filePath - The path to the selected file.
-	 * @returns {Promise<void>}
-	 */
+	useEffect(() => {
+		if (copySuccess) {
+			const timer = setTimeout(() => setCopySuccess(false), 2000);
+			return () => clearTimeout(timer);
+		}
+		return () => {};
+	}, [copySuccess]);
+
 	const handleFileSelect = async (filePath: string) => {
 		setSelectedFile(filePath);
 		try {
+			const fileName = path.basename(filePath);
+			// Handle common files differently
+			if (isCommonFile(fileName)) {
+				// Use absolute path resolution
+				const absolutePath = path.join(workspacePath, filePath);
+				debugLog(`Reading common file: ${absolutePath}`);
+				const preview = getFilePreview(absolutePath);
+				setSelectedFileContent(preview);
+				setSelectedFileDocs('Common file type - preview only');
+				return;
+			}
+
 			// Get existing documentation
 			const doc = docManager.getDocumentation(filePath);
 			if (doc) {
@@ -327,8 +371,7 @@ const GenerateMode: React.FC<{
 				});
 			}
 		} catch (err) {
-			const errorMsg =
-				err instanceof Error ? err.message : 'Failed to load documentation';
+			const errorMsg = err instanceof Error ? err.message : 'Failed to load documentation';
 			debugLog(`Error loading documentation: ${errorMsg}`);
 			setError(errorMsg);
 			setSelectedFileContent('Error loading preview');
@@ -367,6 +410,33 @@ const GenerateMode: React.FC<{
 		return node;
 	};
 
+	// Add clipboard handler
+	const handleCopy = async () => {
+		if (selectedFileDocs) {
+			try {
+				await navigator.clipboard.writeText(selectedFileDocs);
+				setCopySuccess(true);
+			} catch (err) {
+				debugLog(`Error copying to clipboard: ${err}`);
+			}
+		}
+	};
+
+	// Add key handler for copying
+	useEffect(() => {
+		const handleKeyPress = (key: Buffer) => {
+			// Check for Ctrl+C (3) or Cmd+C (3)
+			if (key[0] === 3 && selectedFileDocs) {
+				handleCopy();
+			}
+		};
+
+		process.stdin.on('data', handleKeyPress);
+		return () => {
+			process.stdin.removeListener('data', handleKeyPress);
+		};
+	}, [selectedFileDocs]);
+
 	if (error) {
 		return (
 			<Box flexDirection="column">
@@ -395,6 +465,7 @@ const GenerateMode: React.FC<{
 			<Box marginBottom={1}>
 				<Text bold>Documentation Browser - {workspacePath}</Text>
 				<Text> (Press ⌘+B to go back to menu)</Text>
+				{copySuccess && <Text color="green"> ✓ Copied to clipboard!</Text>}
 			</Box>
 			<Box>
 				<Box width="50%" marginRight={2}>
@@ -413,6 +484,7 @@ const GenerateMode: React.FC<{
 									<Text bold>Documentation:</Text>
 									<Box marginLeft={1} marginTop={1}>
 										<Text>{selectedFileDocs}</Text>
+										<Text dimColor> (Press Cmd/Ctrl+C to copy)</Text>
 									</Box>
 								</Box>
 							)}
@@ -587,7 +659,7 @@ const getAllFilesFromStructure = (
 		);
 	}
 
-	return [];
+	return []; // Return empty array for any other case (like directory without children)
 };
 
 export default App;
