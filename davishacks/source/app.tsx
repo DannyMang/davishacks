@@ -75,7 +75,7 @@ const COMMON_FILES = new Set([
 	'.env',
 	'.gitignore',
 	'LICENSE',
-	'README'
+	'README',
 ]);
 
 const DEBUG = true;
@@ -203,13 +203,13 @@ const readDirectory = (dirPath: string, level = 0): FileNode => {
 					name,
 					type: 'file',
 					preview: getFilePreview(dirPath),
-					documentation: 'Common file type - preview only'
+					documentation: 'Common file type - preview only',
 				};
 			}
 			return {
 				name,
 				type: 'file',
-				documentation: 'Not a supported file type'
+				documentation: 'Not a supported file type',
 			};
 		}
 
@@ -267,7 +267,7 @@ const GenerateMode: React.FC<{
 	const parser = new Parser();
 
 	useInput((input, key) => {
-		if ((input === 'b' || input === 'B') && key.meta) {
+		if (key.ctrl && input.toLowerCase() === 'b') {
 			onBack();
 		}
 	});
@@ -371,7 +371,8 @@ const GenerateMode: React.FC<{
 				});
 			}
 		} catch (err) {
-			const errorMsg = err instanceof Error ? err.message : 'Failed to load documentation';
+			const errorMsg =
+				err instanceof Error ? err.message : 'Failed to load documentation';
 			debugLog(`Error loading documentation: ${errorMsg}`);
 			setError(errorMsg);
 			setSelectedFileContent('Error loading preview');
@@ -442,7 +443,7 @@ const GenerateMode: React.FC<{
 			<Box flexDirection="column">
 				<Text color="red">Error: {error}</Text>
 				<Box marginTop={1}>
-					<Text>Press ⌘+B to go back to menu</Text>
+					<Text>Press Ctrl+B to go back to menu</Text>
 				</Box>
 			</Box>
 		);
@@ -464,7 +465,7 @@ const GenerateMode: React.FC<{
 		<Box flexDirection="column">
 			<Box marginBottom={1}>
 				<Text bold>Documentation Browser - {workspacePath}</Text>
-				<Text> (Press ⌘+B to go back to menu)</Text>
+				<Text> (Press Ctrl+B to go back to menu)</Text>
 				{copySuccess && <Text color="green"> ✓ Copied to clipboard!</Text>}
 			</Box>
 			<Box>
@@ -507,7 +508,7 @@ const GenerateMode: React.FC<{
 // Function to handle chat
 const ChatMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 	useInput((input, key) => {
-		if ((input === 'b' || input === 'B') && key.meta) {
+		if (key.ctrl && input.toLowerCase() === 'b') {
 			onBack();
 		}
 	});
@@ -516,7 +517,7 @@ const ChatMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 		<Box flexDirection="column">
 			<Box marginBottom={1}>
 				<Text bold>Chat with Codebase</Text>
-				<Text> (Press ⌘+B to go back to menu)</Text>
+				<Text> (Press Ctrl+B to go back to menu)</Text>
 			</Box>
 			<Text>Chat feature coming soon...</Text>
 		</Box>
@@ -531,7 +532,7 @@ const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 
 	useInput((input, key) => {
 		// Check for Alt+B instead of just B
-		if (input === 'b' && key.meta) {
+		if (key.ctrl && input.toLowerCase() === 'b') {
 			if (!isEditing) {
 				onBack();
 			}
@@ -547,7 +548,7 @@ const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 		// Display success message
 		updateApiKey(value);
 
-		setMessage('API key saved successfully! Press ⌘+B to go back to menu.');
+		setMessage('API key saved successfully! Press Ctrl+B to go back to menu.');
 	};
 
 	return (
@@ -556,7 +557,7 @@ const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 				<Text bold>Configuration</Text>
 				<Text>
 					{' '}
-					({isEditing ? 'Enter to save' : 'Press ⌘+B to go back to menu'})
+					({isEditing ? 'Enter to save' : 'Press Ctrl+B to go back to menu'})
 				</Text>
 			</Box>
 
@@ -616,7 +617,7 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	};
 
 	useInput((input, key) => {
-		if ((input === 'b' || input === 'B') && activeMode !== null && key.meta) {
+		if (key.ctrl && input.toLowerCase() === 'b') {
 			handleBack();
 		}
 	});
