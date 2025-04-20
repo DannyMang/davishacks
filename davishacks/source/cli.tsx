@@ -49,24 +49,18 @@ const [command = 'browse'] = cli.input;
  */
 async function generateDocs(workspacePath: string) {
 	try {
-		console.log('Generating documentation for changed files...');
 		const docManager = new DocManager(workspacePath);
 		const changedFiles = await docManager.getChangedFiles();
 
 		if (changedFiles.length === 0) {
-			console.log('No changed files found.');
 			return;
 		}
 
-		console.log(`Found ${changedFiles.length} changed files.`);
 		for (const file of changedFiles) {
-			console.log(`Processing ${file}...`);
 			await docManager.generateDocumentation(file);
 		}
 
 		await docManager.generateHtml();
-		console.log('Documentation generated successfully!');
-		console.log('You can view the HTML documentation in docs/html/index.html');
 	} catch (error) {
 		console.error('Error generating documentation:', error);
 		process.exit(1);

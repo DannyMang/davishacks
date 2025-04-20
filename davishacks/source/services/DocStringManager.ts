@@ -54,9 +54,6 @@ export async function generateDocStrings(filePath: string): Promise<boolean> {
 
 	// Check if the tree.json file exists
 	if (!fs.existsSync(treeJsonPath)) {
-		console.log(
-			`Tree file not found at ${treeJsonPath}. Generating docstrings without tree comparison.`,
-		);
 		// Just generate docstrings without checking hash
 		return await generateDocstringsForFile(filePath);
 	}
@@ -78,9 +75,6 @@ export async function generateDocStrings(filePath: string): Promise<boolean> {
 	}
 
 	// No changes detected, no docstrings needed
-	console.log(
-		`No changes detected for ${filePath}, skipping docstring generation`,
-	);
 	return false;
 }
 
@@ -180,14 +174,11 @@ async function generateDocstringsForFile(filePath: string): Promise<boolean> {
 			}
 
 			fs.writeFileSync(filePath, processedText);
-			console.log(`Generated docstrings for ${filePath}`);
 			return true;
 		} else {
-			console.log(`No docstrings generated for ${filePath} - empty response`);
 			return false;
 		}
 	} catch (error) {
-		console.error(`Error generating docstrings for ${filePath}:`, error);
 		return false;
 	}
 }
