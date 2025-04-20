@@ -22,7 +22,7 @@ function getProjectRoot(levelsUp = 2): string {
 
 // Usage:
 const projectRoot = getProjectRoot();
-const configPath = path.join(projectRoot, '.davishacks.config.json');
+const configPath = path.join(projectRoot, 'davishacks.config.json');
 export const apiKey = JSON.parse(
 	fs.readFileSync(configPath, 'utf8'),
 ).google_api_key;
