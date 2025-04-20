@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from 'react';
-import {Box, Text} from 'ink';
+import {Box, Text, useInput} from 'ink';
 import {FileTree} from './components/FileTree.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -7,6 +7,7 @@ import {DocManager} from './services/DocManager.js';
 import {generateDirectoryTreeJson} from './treesitter.js';
 import Parser from 'tree-sitter';
 import {LoadingCat} from './components/LoadingCat.js';
+import {Menu, MenuOption} from './components/Menu.js';
 
 /**
  * Interface representing a node in the file tree.
@@ -209,12 +210,11 @@ interface AppProps {
 	path?: string;
 }
 
-/**
- * Main application component that displays a file tree and documentation for selected files.
- * @param {AppProps} props - The props for the component, including the workspace path.
- * @returns {JSX.Element} The rendered component.
- */
-const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
+// Function to handle generation of documentation
+const GenerateMode: React.FC<{
+	workspacePath: string;
+	onBack: () => void;
+}> = ({workspacePath, onBack}) => {
 	const [fileStructure, setFileStructure] = useState<FileNode | null>(null);
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
 	const [selectedFileContent, setSelectedFileContent] = useState<string | null>(
@@ -234,6 +234,12 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	});
 
 	const parser = new Parser();
+
+	useInput(input => {
+		if (input === 'b' || input === 'B') {
+			onBack();
+		}
+	});
 
 	useEffect(() => {
 		async function process() {
@@ -361,8 +367,11 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 
 	if (error) {
 		return (
-			<Box>
+			<Box flexDirection="column">
 				<Text color="red">Error: {error}</Text>
+				<Box marginTop={1}>
+					<Text>Press 'b' to go back to the menu</Text>
+				</Box>
 			</Box>
 		);
 	}
@@ -383,6 +392,7 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 		<Box flexDirection="column">
 			<Box marginBottom={1}>
 				<Text bold>Documentation Browser - {workspacePath}</Text>
+				<Text> (Press 'b' to go back to menu)</Text>
 			</Box>
 			<Box>
 				<Box width="50%" marginRight={2}>
@@ -418,6 +428,82 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 			</Box>
 		</Box>
 	);
+};
+
+// Function to handle chat
+const ChatMode: React.FC<{onBack: () => void}> = ({onBack}) => {
+	useInput(input => {
+		if (input === 'b' || input === 'B') {
+			onBack();
+		}
+	});
+
+	return (
+		<Box flexDirection="column">
+			<Box marginBottom={1}>
+				<Text bold>Chat with Codebase</Text>
+				<Text> (Press 'b' to go back to menu)</Text>
+			</Box>
+			<Text>Chat feature coming soon...</Text>
+		</Box>
+	);
+};
+
+// Function to handle config
+const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
+	useInput(input => {
+		if (input === 'b' || input === 'B') {
+			onBack();
+		}
+	});
+
+	return (
+		<Box flexDirection="column">
+			<Box marginBottom={1}>
+				<Text bold>Configuration</Text>
+				<Text> (Press 'b' to go back to menu)</Text>
+			</Box>
+			<Text>Configuration feature coming soon...</Text>
+		</Box>
+	);
+};
+
+/**
+ * Main application component that displays a file tree and documentation for selected files.
+ * @param {AppProps} props - The props for the component, including the workspace path.
+ * @returns {JSX.Element} The rendered component.
+ */
+const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
+	const [activeMode, setActiveMode] = useState<MenuOption | null>(null);
+
+	const handleMenuSelect = (option: MenuOption) => {
+		setActiveMode(option);
+	};
+
+	const handleBack = () => {
+		setActiveMode(null);
+	};
+
+	useInput(input => {
+		if ((input === 'b' || input === 'B') && activeMode !== null) {
+			handleBack();
+		}
+	});
+
+	if (activeMode === null) {
+		return <Menu onSelect={handleMenuSelect} />;
+	}
+
+	switch (activeMode) {
+		case 'generate':
+			return <GenerateMode workspacePath={workspacePath} onBack={handleBack} />;
+		case 'chat':
+			return <ChatMode onBack={handleBack} />;
+		case 'config':
+			return <ConfigMode onBack={handleBack} />;
+		default:
+			return <Menu onSelect={handleMenuSelect} />;
+	}
 };
 
 /**
