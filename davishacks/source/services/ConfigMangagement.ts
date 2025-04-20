@@ -26,3 +26,10 @@ const configPath = path.join(projectRoot, 'davishacks.config.json');
 export const apiKey = JSON.parse(
 	fs.readFileSync(configPath, 'utf8'),
 ).google_api_key;
+
+export function updateApiKey(key: string) {
+	let configContents = fs.readFileSync(configPath, {encoding: 'utf8'});
+	let configJson = JSON.parse(configContents);
+	configJson.google_api_key = key;
+	fs.writeFileSync(configPath, JSON.stringify(configJson));
+}

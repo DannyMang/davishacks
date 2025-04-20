@@ -1,5 +1,6 @@
 import React, {useState, useEffect} from 'react';
 import {Box, Text, useInput} from 'ink';
+import TextInput from 'ink-text-input';
 import {FileTree} from './components/FileTree.js';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -8,6 +9,7 @@ import {generateDirectoryTreeJson} from './treesitter.js';
 import Parser from 'tree-sitter';
 import {LoadingCat} from './components/LoadingCat.js';
 import {Menu, MenuOption} from './components/Menu.js';
+import {updateApiKey} from './services/ConfigMangagement.js';
 
 /**
  * Interface representing a node in the file tree.
@@ -235,8 +237,8 @@ const GenerateMode: React.FC<{
 
 	const parser = new Parser();
 
-	useInput(input => {
-		if (input === 'b' || input === 'B') {
+	useInput((input, key) => {
+		if ((input === 'b' || input === 'B') && key.meta) {
 			onBack();
 		}
 	});
@@ -370,7 +372,7 @@ const GenerateMode: React.FC<{
 			<Box flexDirection="column">
 				<Text color="red">Error: {error}</Text>
 				<Box marginTop={1}>
-					<Text>Press 'b' to go back to the menu</Text>
+					<Text>Press ⌘+B to go back to menu</Text>
 				</Box>
 			</Box>
 		);
@@ -392,7 +394,7 @@ const GenerateMode: React.FC<{
 		<Box flexDirection="column">
 			<Box marginBottom={1}>
 				<Text bold>Documentation Browser - {workspacePath}</Text>
-				<Text> (Press 'b' to go back to menu)</Text>
+				<Text> (Press ⌘+B to go back to menu)</Text>
 			</Box>
 			<Box>
 				<Box width="50%" marginRight={2}>
@@ -432,8 +434,8 @@ const GenerateMode: React.FC<{
 
 // Function to handle chat
 const ChatMode: React.FC<{onBack: () => void}> = ({onBack}) => {
-	useInput(input => {
-		if (input === 'b' || input === 'B') {
+	useInput((input, key) => {
+		if ((input === 'b' || input === 'B') && key.meta) {
 			onBack();
 		}
 	});
@@ -442,7 +444,7 @@ const ChatMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 		<Box flexDirection="column">
 			<Box marginBottom={1}>
 				<Text bold>Chat with Codebase</Text>
-				<Text> (Press 'b' to go back to menu)</Text>
+				<Text> (Press ⌘+B to go back to menu)</Text>
 			</Box>
 			<Text>Chat feature coming soon...</Text>
 		</Box>
@@ -451,19 +453,76 @@ const ChatMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 
 // Function to handle config
 const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
-	useInput(input => {
-		if (input === 'b' || input === 'B') {
-			onBack();
+	const [apiKey, setApiKey] = useState('');
+	const [isEditing, setIsEditing] = useState(true);
+	const [message, setMessage] = useState<string | null>(null);
+
+	useInput((input, key) => {
+		// Check for Alt+B instead of just B
+		if (input === 'b' && key.meta) {
+			if (!isEditing) {
+				onBack();
+			}
+		} else if (input === 'e' && !isEditing) {
+			// Allow editing again with 'e'
+			setIsEditing(true);
 		}
 	});
 
+	const handleSubmit = (value: string) => {
+		setApiKey(value);
+		setIsEditing(false);
+		// Display success message
+		updateApiKey(value);
+
+		setMessage('API key saved successfully! Press ⌘+B to go back to menu.');
+	};
+
 	return (
-		<Box flexDirection="column">
+		<Box flexDirection="column" padding={1}>
 			<Box marginBottom={1}>
 				<Text bold>Configuration</Text>
-				<Text> (Press 'b' to go back to menu)</Text>
+				<Text>
+					{' '}
+					({isEditing ? 'Enter to save' : 'Press ⌘+B to go back to menu'})
+				</Text>
 			</Box>
-			<Text>Configuration feature coming soon...</Text>
+
+			<Box marginY={1}>
+				<Text>Google API Key: </Text>
+				{isEditing ? (
+					<TextInput
+						value={apiKey}
+						onChange={setApiKey}
+						onSubmit={handleSubmit}
+						placeholder="Enter your Google API key"
+						showCursor
+					/>
+				) : (
+					<Text color="green">
+						{apiKey.substring(0, 4)}...{apiKey.substring(apiKey.length - 4)}
+					</Text>
+				)}
+			</Box>
+
+			{!isEditing && (
+				<Box marginTop={1}>
+					<Text color="cyan">Press 'e' to edit API key again</Text>
+				</Box>
+			)}
+
+			{message && (
+				<Box marginTop={1}>
+					<Text color="green">{message}</Text>
+				</Box>
+			)}
+
+			<Box marginTop={2}>
+				<Text dimColor>
+					Your API key will be used for code analysis and generating
+					documentation.
+				</Text>
+			</Box>
 		</Box>
 	);
 };
@@ -484,8 +543,8 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 		setActiveMode(null);
 	};
 
-	useInput(input => {
-		if ((input === 'b' || input === 'B') && activeMode !== null) {
+	useInput((input, key) => {
+		if ((input === 'b' || input === 'B') && activeMode !== null && key.meta) {
 			handleBack();
 		}
 	});
