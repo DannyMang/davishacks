@@ -388,33 +388,60 @@ export function updateFileHashes(
 		const treeJsonContent = fs.readFileSync(treeJsonPath, 'utf8');
 		let treeJson = JSON.parse(treeJsonContent);
 
-		console.log(`Updating hashes for ${changedFiles.length} changed files`);
-
 		// Process each changed file
 		for (const filePath of changedFiles) {
 			try {
+				// Construct the full path CORRECTLY assuming filePath is RELATIVE
+				const fullPath = path.resolve(rootDir, filePath); // Use resolve for safety
+
+				if (!fs.existsSync(fullPath)) {
+					debugLog(
+						`[updateFileHashes] Skipping ${filePath}, file not found at ${fullPath}`,
+					);
+					continue;
+				}
+
 				// Read current file content
-				const fullPath = path.join(rootDir, filePath);
 				const content = fs.readFileSync(fullPath, 'utf8');
 				const newHash = generateHash(content);
 
 				// Update the file structure in the tree
 				treeJson = updateFileInTree(treeJson, filePath, fileStructure => {
-					console.log(`Updating hash for ${filePath}`);
-					return {
-						...fileStructure,
-						file_hash: newHash,
-					};
+					// Only update if the hash is actually different
+					if (fileStructure.file_hash !== newHash) {
+						debugLog(
+							`[updateFileHashes] Updating hash for ${filePath} in tree JSON.`,
+						);
+						return {
+							...fileStructure,
+							file_hash: newHash,
+						};
+					}
+					return fileStructure; // Return unchanged if hash matches
 				});
 			} catch (error) {
+				// Log the specific file path that caused the error
+				debugLog(
+					`[updateFileHashes] Error processing file ${filePath} (resolved: ${path.resolve(
+						rootDir,
+						filePath,
+					)}): ${error}`,
+				);
 				console.error(`Error updating hash for ${filePath}: ${error}`);
 			}
 		}
 
-		// Write the updated tree back to file
-		fs.writeFileSync(treeJsonPath, JSON.stringify(treeJson, null, 2));
-		console.log(`Updated tree JSON saved to ${treeJsonPath}`);
+		// Write the updated tree back to file only if changes were made
+		// (Comparing JSON strings is a simple way to check for deep equality)
+		const updatedJsonContent = JSON.stringify(treeJson, null, 2);
+		if (updatedJsonContent !== treeJsonContent) {
+			fs.writeFileSync(treeJsonPath, updatedJsonContent);
+			debugLog(`[updateFileHashes] Updated tree JSON saved to ${treeJsonPath}`);
+		} else {
+			debugLog(`[updateFileHashes] No hash updates needed in tree JSON.`);
+		}
 	} catch (error) {
+		debugLog(`[updateFileHashes] Error reading/writing tree JSON: ${error}`);
 		console.error(`Error updating file hashes: ${error}`);
 	}
 }
@@ -619,14 +646,14 @@ function extractStructure(
 			}
 		});
 
-		// Use the provided hash or generate a new one
+		// Use the provided hash or generate a new one if empty
 		const actualHash =
 			fileHash ||
 			generateHash(fs.readFileSync(filePath, {encoding: 'utf8', flag: 'r'}));
 
 		return {
 			type: 'file_structure',
-			filePath: filePath,
+			filePath: filePath, // Should be relative path passed in
 			items: rootItems,
 			file_hash: actualHash,
 		};
@@ -725,7 +752,8 @@ function buildTreeRecursive(
 		const entryKey = entry.name;
 
 		if (ig.ignores(relativePath)) continue;
-		if (entry.isDirectory() && entry.name === '.git') continue;
+		// More robust check for .git (covers files named .git too, although unlikely)
+		if (entry.name === '.git') continue;
 
 		if (entry.isDirectory()) {
 			// Recursive call to process subdirectory
@@ -748,8 +776,9 @@ function buildTreeRecursive(
 				// Check if file has changed
 				const {changed, hash} = hasFileChanged(fullPath, cache);
 
-				// Update the cache entry for this file
+				// Update the cache entry for this file regardless of change status
 				cache.files[fullPath] = {
+					// Use fullPath as cache key
 					file_hash: hash,
 					lastParsed: Date.now(),
 				};
@@ -764,36 +793,60 @@ function buildTreeRecursive(
 					}
 				}
 
-				// Only process if file has changed or was never processed before
-				if (changed) {
+				// Only parse/extract if file has changed or no existing node was found
+				if (changed || !existingFileNode) {
 					const parseResult = parseFile(fullPath, parser);
 					if (parseResult) {
 						const {tree, language, scheme} = parseResult;
+						// Pass relativePath and hash to extractStructure
 						const structure = extractStructure(
 							tree,
 							language,
 							scheme,
-							relativePath,
-							hash, // Pass the hash to avoid recalculating it
+							relativePath, // Use relative path here
+							hash,
 						);
 
 						if (structure && structure.items.length > 0) {
 							directoryContent[entryKey] = structure;
-							updatedPaths.add(relativePath);
+							updatedPaths.add(relativePath); // Add relative path
 							debugLog(
 								`    [Updated Structure] For changed file: ${entryKey} (${structure.items.length} root items found)`,
+							);
+						} else if (structure) {
+							// Handle case where file exists but has no items (maybe only comments)
+							// Still include it with its hash if needed, or decide to omit empty files
+							directoryContent[entryKey] = structure; // Keep it simple for now
+							updatedPaths.add(relativePath);
+							debugLog(
+								`    [Updated Structure] File: ${entryKey} (0 items found)`,
 							);
 						}
 					}
 				} else if (existingFileNode) {
-					// File hasn't changed - use existing structure
-					directoryContent[entryKey] = existingFileNode;
-					debugLog(
-						`    [Preserved Unchanged] File: ${entryKey} (hash: ${hash.substring(
-							0,
-							8,
-						)}...)`,
-					);
+					// File hasn't changed - use existing structure but ensure hash is correct
+					if (existingFileNode.file_hash !== hash) {
+						debugLog(
+							`    [Updating Hash] For unchanged file: ${entryKey} (Old: ${existingFileNode.file_hash.substring(
+								0,
+								8,
+							)}, New: ${hash.substring(0, 8)})`,
+						);
+						// Create a new object to avoid mutating the potentially cached existingTree
+						directoryContent[entryKey] = {
+							...existingFileNode,
+							file_hash: hash,
+						};
+					} else {
+						// Hashes match, reuse existing node directly
+						directoryContent[entryKey] = existingFileNode;
+						// debugLog(
+						// 	`    [Preserved Unchanged] File: ${entryKey} (hash: ${hash.substring(
+						// 		0,
+						// 		8,
+						// 	)}...)`,
+						// );
+					}
 				}
 			}
 		}
@@ -852,7 +905,7 @@ export async function generateDirectoryTreeJson(
 
 	// Load cache to check which files have changed
 	let cache = force ? {files: {}, lastUpdated: 0} : loadCache(rootDir);
-	const updatedPaths = new Set<string>();
+	const updatedPaths = new Set<string>(); // Stores relative paths
 
 	const treeContent = buildTreeRecursive(
 		rootDir,
@@ -871,17 +924,8 @@ export async function generateDirectoryTreeJson(
 	const rootDirName = path.basename(rootDir);
 	const safeRootDirName = rootDirName.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
 
-	let finalOutput: DirectoryTree;
-
-	// If we have an existing tree and there were no updates, use the existing tree
-	if (existingTree && updatedPaths.size === 0) {
-		finalOutput = existingTree;
-		debugLog(`No changes detected, preserving existing tree structure`);
-	} else {
-		finalOutput = {
-			[safeRootDirName]: treeContent,
-		};
-	}
+	// The final structure should represent the content *inside* the rootDir
+	let finalOutput: DirectoryTree = treeContent; // Directly use the content
 
 	const outputFileName = `${safeRootDirName}.tree.json`;
 	const outputFilePath = path.join(rootDir, outputFileName);
@@ -889,26 +933,28 @@ export async function generateDirectoryTreeJson(
 	debugLog(`Attempting to write directory tree JSON to: ${outputFilePath}`);
 
 	try {
-		const jsonContent = JSON.stringify(finalOutput, null, 2);
+		// Wrap the content under the root directory name for the final JSON output
+		const jsonOutput = {
+			[safeRootDirName]: finalOutput,
+		};
+		const jsonContent = JSON.stringify(jsonOutput, null, 2);
 		fs.writeFileSync(outputFilePath, jsonContent, {encoding: 'utf8'});
 		debugLog(`Successfully wrote directory tree JSON to: ${outputFilePath}`);
-		console.log(`Successfully generated structure file: ${outputFilePath}`);
-		console.log(`Updated ${updatedPaths.size} files`);
 
 		// Generate docstrings for changed files if enabled
 		if (generateDocs && updatedPaths.size > 0) {
 			debugLog('Generating docstrings for updated files...');
 
-			// Process each file that was updated
+			// Process each file that was updated (updatedPaths contains relative paths)
 			for (const relativeFilePath of updatedPaths) {
 				try {
 					// Skip files we don't want to document
 					const ext = path.extname(relativeFilePath).toLowerCase();
 					if (
 						['.js', '.jsx', '.ts', '.tsx', '.py'].includes(ext) &&
-						!relativeFilePath.includes('.tree.json')
+						!relativeFilePath.includes('.tree.json') // Redundant check?
 					) {
-						const fullPath = path.join(rootDir, relativeFilePath);
+						const fullPath = path.join(rootDir, relativeFilePath); // Construct full path
 						debugLog(`Generating docstrings for ${relativeFilePath}`);
 						await generateDocStrings(fullPath);
 					}
@@ -929,6 +975,8 @@ export async function generateDirectoryTreeJson(
 	}
 
 	debugLog(`=== Finished directory scan for ${rootDir} ===`);
+	// Return the structure *without* the top-level rootDirName key,
+	// and the relative updated paths
 	return {tree: finalOutput, updatedPaths};
 }
 
@@ -939,21 +987,19 @@ export async function generateDirectoryTreeJson(
  * @param rootDir The directory to monitor
  * @param parser A Tree-sitter parser instance
  * @param intervalMs How often to check for changes (default: 5000ms)
- * @param callback Optional callback to run when changes are detected
+ * @param callback Optional callback to run when changes are detected (receives relative paths)
  * @returns Function to stop monitoring
  */
 export function monitorDirectoryChanges(
 	rootDir: string,
 	parser: Parser,
 	intervalMs: number = 5000,
-	callback?: (updatedFiles: string[]) => void,
+	callback?: (updatedRelativeFiles: string[]) => void, // Callback receives relative paths
 	generateDocs: boolean = false,
 ): () => void {
 	debugLog(
 		`Starting continuous monitoring of ${rootDir} (interval: ${intervalMs}ms)`,
 	);
-	console.log(`Starting continuous monitoring of ${rootDir}`);
-	console.log(`Docstring generation: ${generateDocs ? 'enabled' : 'disabled'}`);
 
 	let isRunning = false;
 	const interval = setInterval(async () => {
@@ -964,20 +1010,21 @@ export function monitorDirectoryChanges(
 
 		isRunning = true;
 		try {
+			// generateDirectoryTreeJson returns relative paths in updatedPaths
 			const result = await generateDirectoryTreeJson(
 				rootDir,
 				parser,
-				false,
+				false, // Don't force during monitoring
 				generateDocs,
 			);
-			const updatedPaths = result.updatedPaths;
+			const updatedPaths = result.updatedPaths; // These are relative paths
 
 			if (updatedPaths.size > 0) {
-				const updatedFiles = Array.from(updatedPaths) as string[];
+				const updatedFiles = Array.from(updatedPaths); // Already relative paths
 				debugLog(`Detected changes in ${updatedPaths.size} files`);
 
 				if (callback && typeof callback === 'function') {
-					callback(updatedFiles);
+					callback(updatedFiles); // Pass relative paths to callback
 				}
 			}
 		} catch (error) {
@@ -991,7 +1038,6 @@ export function monitorDirectoryChanges(
 	return () => {
 		clearInterval(interval);
 		debugLog('Stopped continuous monitoring');
-		console.log('Stopped continuous monitoring');
 	};
 }
 

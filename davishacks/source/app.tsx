@@ -1,16 +1,17 @@
-import React, {useState, useEffect} from 'react';
-import {Box, Text, useInput} from 'ink';
+import React, {useState, useEffect, useCallback} from 'react';
+import {Box, Text, useInput, useApp} from 'ink';
 import TextInput from 'ink-text-input';
 import {FileTree} from './components/FileTree.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import {DocManager} from './services/DocManager.js';
-import {generateDirectoryTreeJson} from './treesitter.js';
-import Parser from 'tree-sitter';
 import {LoadingCat} from './components/LoadingCat.js';
 import {Menu, MenuOption} from './components/Menu.js';
 import {updateApiKey} from './services/ConfigMangagement.js';
-import ChatInterface from './components/ChatInterface.js';
+import ChatInterface from './components/ChatInterface.js'; // Adjusted import path based on potential structure
+import clipboard from 'clipboardy'; // Import a clipboard library
+import {generateDirectoryTreeJson} from './treesitter.js';
+import Parser from 'tree-sitter';
 
 /**
  * Interface representing a node in the file tree.
@@ -48,7 +49,7 @@ const IGNORED_DIRS = new Set([
 	'.cache',
 ]);
 
-// File extensions we're interested in
+// File extensions we're interested in (used by getAllFilesFromStructure)
 const INTERESTING_EXTENSIONS = new Set([
 	'.js',
 	'.jsx',
@@ -62,8 +63,8 @@ const INTERESTING_EXTENSIONS = new Set([
 	'.c',
 	'.h',
 	'.hpp',
-	'.md',
-	'.txt',
+	// '.md', // Generally don't auto-document markdown itself
+	// '.txt', // Generally don't auto-document text files
 ]);
 
 const COMMON_FILES = new Set([
@@ -118,22 +119,29 @@ const debugLog = (message: string) => {
 debugLog('Logging system initialized');
 
 /**
- * Retrieves a preview of a file's content by reading the first 5 lines.
+ * Retrieves a preview of a file's content by reading the first N lines.
  * @param {string} filePath - The path to the file.
- * @returns {string} A string containing the first 5 lines of the file, or an error message if the file cannot be read.
+ * @param {number} [lines=10] - Max number of lines to preview.
+ * @returns {string} A string containing the first N lines of the file, or an error message.
  */
-const getFilePreview = (filePath: string): string => {
+const getFilePreview = (filePath: string, maxLines: number = 10): string => {
 	try {
-		debugLog(`Attempting to read file: ${filePath}`);
-		if (!fs.existsSync(filePath)) {
-			debugLog(`File does not exist: ${filePath}`);
+		// Use absolute path for reading
+		const absolutePath = path.resolve(filePath);
+		debugLog(`Attempting to read file preview: ${absolutePath}`);
+		if (!fs.existsSync(absolutePath)) {
+			debugLog(`File does not exist: ${absolutePath}`);
 			return 'File does not exist';
 		}
-		const content = fs.readFileSync(filePath, 'utf-8');
-		const lines = content.split('\n').slice(0, 5); // Get first 5 lines
-		return lines.join('\n') + (lines.length >= 5 ? '\n...' : '');
+		const content = fs.readFileSync(absolutePath, 'utf-8');
+		const lines = content.split('\n').slice(0, maxLines); // Get first N lines
+		return lines.join('\n') + (lines.length >= maxLines ? '\n...' : '');
 	} catch (error: any) {
-		debugLog(`Error reading file ${filePath}: ${error}`);
+		debugLog(
+			`Error reading file ${filePath} (resolved: ${path.resolve(
+				filePath,
+			)}): ${error}`,
+		);
 		return `Unable to read file content: ${error?.message || 'Unknown error'}`;
 	}
 };
@@ -144,89 +152,58 @@ const isCommonFile = (filename: string): boolean => {
 	return COMMON_FILES.has(ext) || COMMON_FILES.has(basename);
 };
 
-const readDirectory = (dirPath: string, level = 0): FileNode => {
+// This function provides the structure for the FileTree UI component
+// It does NOT use tree-sitter and doesn't include detailed code items or hashes.
+const readDirectoryForUI = (dirPath: string, level = 0): FileNode => {
 	const indent = '  '.repeat(level);
-	const name = path.basename(dirPath);
-	debugLog(`${indent}Reading: ${dirPath}`);
+	// Use the resolved absolute path internally for consistency
+	const absoluteDirPath = path.resolve(dirPath);
+	const name = path.basename(absoluteDirPath);
+	// debugLog(`${indent}Reading UI structure for: ${absoluteDirPath}`);
 
 	try {
-		const stats = fs.statSync(dirPath);
+		const stats = fs.statSync(absoluteDirPath); // Use absolute path
 
-		// Handle directories
 		if (stats.isDirectory()) {
-			if (IGNORED_DIRS.has(name)) {
-				debugLog(`${indent}Skipping ignored directory: ${name}`);
-				return {
-					name,
-					type: 'directory',
-					children: [],
-				};
+			if (IGNORED_DIRS.has(name) || name === '.git') {
+				return {name, type: 'directory', children: []};
 			}
 
-			debugLog(`${indent}Processing directory: ${name}`);
-			const items = fs.readdirSync(dirPath);
-			debugLog(`${indent}Found ${items.length} items in ${name}`);
-
+			const items = fs.readdirSync(absoluteDirPath); // Use absolute path
 			const children = items
-				.filter(item => !item.startsWith('.'))
 				.map(item => {
-					const fullPath = path.join(dirPath, item);
-					return readDirectory(fullPath, level + 1);
+					// Construct the full path using resolve to ensure it's absolute
+					const fullPath = path.resolve(absoluteDirPath, item);
+					if (item.startsWith('.')) return null; // Skip hidden files/dirs
+					// Recursive call MUST use the correctly resolved fullPath
+					return readDirectoryForUI(fullPath, level + 1);
 				})
-				.filter(child => {
-					if (
-						child.type === 'directory' &&
-						(!child.children || child.children.length === 0)
-					) {
-						debugLog(`${indent}  Skipping empty directory: ${child.name}`);
-						return false;
+				.filter((child): child is FileNode => {
+					// Filter logic remains the same
+					if (child === null) return false;
+					if (child.type === 'file') return true;
+					if (child.type === 'directory') {
+						return Array.isArray(child.children) && child.children.length > 0;
 					}
-					return true;
+					return false;
 				});
 
-			debugLog(
-				`${indent}Directory ${name} has ${children.length} valid children`,
-			);
-			return {
-				name,
-				type: 'directory',
-				children,
-			};
+			return {name, type: 'directory', children};
+		} else if (stats.isFile()) {
+			return {name, type: 'file'};
+		} else {
+			return {name: `${name} (unsupported type)`, type: 'file'};
 		}
-
-		// Handle files
-		const ext = path.extname(name).toLowerCase();
-		if (!INTERESTING_EXTENSIONS.has(ext)) {
-			debugLog(`${indent}Skipping uninteresting file: ${name} (${ext})`);
-			// If it's a common file type, include it with just a preview
-			if (isCommonFile(name)) {
-				return {
-					name,
-					type: 'file',
-					preview: getFilePreview(dirPath),
-					documentation: 'Common file type - preview only',
-				};
-			}
-			return {
-				name,
-				type: 'file',
-				documentation: 'Not a supported file type',
-			};
-		}
-
-		debugLog(`${indent}Including file: ${name}`);
-		return {
-			name,
-			type: 'file',
-			documentation: 'Documentation will be generated here',
-			preview: getFilePreview(dirPath),
-		};
 	} catch (error) {
-		debugLog(`${indent}Error processing ${dirPath}: ${error}`);
+		// Log the absolute path that failed
+		debugLog(
+			`${indent}Error reading UI structure for ${absoluteDirPath}: ${error}`,
+		);
+		// Include the absolute path in the error node documentation for clarity
 		return {
-			name,
+			name: `${name} (error)`,
 			type: 'file',
-			documentation: `Error: ${error}`,
+			documentation: `Error accessing ${absoluteDirPath}: ${error}`,
 		};
 	}
 };
@@ -255,86 +232,110 @@ const GenerateMode: React.FC<{
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [loadingMessage, setLoadingMessage] = useState('Initializing...');
-	const [docManager] = useState(() => {
-		// Remove any duplicate davishacks from the workspace path
-		const normalizedPath = workspacePath.replace(
-			/davishacks\/davishacks/,
-			'davishacks',
-		);
-		return new DocManager(normalizedPath);
-	});
+	// Initialize DocManager with the absolute workspacePath passed as prop
+	const [docManager] = useState(() => new DocManager(workspacePath));
 	const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
-	const parser = new Parser();
+	// Add clipboard handler using a Node.js library
+	const handleCopy = useCallback(async () => {
+		if (selectedFileDocs) {
+			try {
+				await clipboard.write(selectedFileDocs); // Use clipboardy
+				setCopySuccess(true);
+			} catch (err) {
+				debugLog(`Error copying to clipboard: ${err}`);
+				setCopySuccess(false);
+			}
+		}
+	}, [selectedFileDocs]);
 
 	useInput((input, key) => {
+		// Handle going back
 		if (key.ctrl && input.toLowerCase() === 'b') {
 			onBack();
 		}
+		// Handle copying documentation with Shift+C
+		else if (key.shift && input.toUpperCase() === 'C') {
+			if (
+				selectedFileDocs &&
+				selectedFileDocs !== '(Common file type - preview only)' &&
+				selectedFileDocs !== '(No documentation generated yet)'
+			) {
+				handleCopy();
+			}
+		}
+		// TODO: Add a keybind here to trigger documentation generation manually?
+		// else if (key.shift && input.toUpperCase() === 'G') {
+		//    triggerDocumentationGeneration(); // Need to implement this function
+		// }
 	});
 
+	// This useEffect now only initializes the UI state and loads existing data
+	// It should NOT modify source files.
 	useEffect(() => {
-		async function process() {
-			generateDirectoryTreeJson(workspacePath, parser, true, true);
-		}
-		process();
-		debugLog('=== Starting file scan ===');
-		debugLog(`Current directory: ${workspacePath}`);
-		debugLog(`Target path: ${workspacePath}`);
+		async function initializeUI() {
+			setIsLoading(true);
+			setError(null);
+			setFileStructure(null);
+			setLoadingMessage('Scanning project files...');
+			debugLog('=== Initializing GenerateMode UI ===');
+			// workspacePath prop is already resolved to absolute in App component
+			debugLog(`Using workspace path: ${workspacePath}`);
 
-		const initialize = async () => {
 			try {
-				debugLog('=== Starting initialization ===');
-				debugLog(`Current directory: ${workspacePath}`);
-				debugLog(`Target path: ${workspacePath}`);
+				// Directly call readDirectoryForUI and check its result
+				const uiStructure = readDirectoryForUI(workspacePath); // Pass the absolute path
 
-				// Normalize the workspace path
-				const normalizedPath = workspacePath.replace(
-					/davishacks\/davishacks/,
-					'davishacks',
-				);
-				const structure = readDirectory(normalizedPath);
-				debugLog('File scan completed successfully');
-				setFileStructure(structure);
+				// Check if the root operation itself failed within readDirectoryForUI
+				if (uiStructure.name.includes('(error)')) {
+					// Extract the more detailed error from the node if available
+					throw new Error(
+						`Failed to read workspace root: ${
+							uiStructure.documentation ||
+							'Unknown error reading directory structure'
+						}`,
+					);
+				}
 
-				// Get all files that need documentation
-				const filesToDocument = getAllFilesFromStructure(structure);
-				setLoadingMessage(
-					`Generating documentation for ${filesToDocument.length} files...`,
-				);
+				// Check if the structure is empty (might be valid, but good to log)
+				if (
+					uiStructure.type === 'directory' &&
+					(!uiStructure.children || uiStructure.children.length === 0)
+				) {
+					debugLog(
+						`Workspace scan resulted in an empty directory structure for ${workspacePath}`,
+					);
+				} else {
+					debugLog(`File scan for UI completed successfully.`);
+				}
 
-				// Generate documentation for all files
-				await docManager.generateAllDocumentation(filesToDocument);
-
-				setIsLoading(false);
-				debugLog('Initialization complete');
+				setFileStructure(uiStructure); // Set UI state
 			} catch (err) {
+				// This catch block will catch errors explicitly thrown above,
+				// or potentially unexpected errors from deep within fs calls.
 				const errorMsg =
-					err instanceof Error ? err.message : 'Failed to initialize';
-				debugLog(`Error during initialization: ${errorMsg}`);
-				setError(errorMsg);
+					err instanceof Error ? err.message : 'Failed to scan workspace';
+				// Format the error clearly for the UI
+				const finalError = `Initialization Error: ${errorMsg}`;
+				debugLog(`Error during UI initialization: ${err}`); // Log the full error object/stack
+				setError(finalError); // Set the formatted error for display
+			} finally {
 				setIsLoading(false);
+				setLoadingMessage(''); // Clear loading message
+				debugLog('=== GenerateMode UI Initialization finished ===');
 			}
-		};
-
-		initialize();
-
-		try {
-			// Normalize the workspace path to handle nested davishacks directory
-			const normalizedPath = workspacePath.replace(
-				/davishacks\/davishacks/,
-				'davishacks',
-			);
-			const structure = readDirectory(normalizedPath);
-			debugLog('File scan completed successfully');
-			setFileStructure(structure);
-		} catch (err) {
-			const errorMsg =
-				err instanceof Error ? err.message : 'Failed to read directory';
-			debugLog(`Error during file scan: ${errorMsg}`);
-			setError(errorMsg);
 		}
-	}, [workspacePath, docManager]);
+
+		// Ensure workspacePath is valid before initializing
+		if (workspacePath && fs.existsSync(workspacePath)) {
+			initializeUI();
+		} else {
+			setError(
+				`Initialization Error: Workspace path not found or invalid: ${workspacePath}`,
+			);
+			setIsLoading(false);
+		}
+	}, [workspacePath]); // Only depends on workspacePath
 
 	useEffect(() => {
 		if (copySuccess) {
@@ -344,105 +345,86 @@ const GenerateMode: React.FC<{
 		return () => {};
 	}, [copySuccess]);
 
-	const handleFileSelect = async (filePath: string) => {
-		setSelectedFile(filePath);
-		try {
-			const fileName = path.basename(filePath);
-			// Handle common files differently
-			if (isCommonFile(fileName)) {
-				// Use absolute path resolution
-				const absolutePath = path.join(workspacePath, filePath);
-				debugLog(`Reading common file: ${absolutePath}`);
-				const preview = getFilePreview(absolutePath);
-				setSelectedFileContent(preview);
-				setSelectedFileDocs('Common file type - preview only');
-				return;
+	const handleFileSelect = useCallback(
+		async (filePath: string) => {
+			// filePath received from FileTree is relative to the root displayed by FileTree
+			setSelectedFile(filePath);
+			setCopySuccess(false);
+			setError(null); // Clear previous file-specific errors
+			setSelectedFileContent(null);
+			setSelectedFileDocs(null);
+
+			// Fix path resolution issues by examining if the filePath overlaps with workspacePath
+			let absolutePath;
+			const workspaceBaseName = path.basename(workspacePath);
+
+			// Check if filePath already contains the workspace base directory
+			if (filePath.startsWith(workspaceBaseName + '/')) {
+				// If the relative path already includes the workspace name, resolve from the parent directory
+				absolutePath = path.resolve(path.dirname(workspacePath), filePath);
+			} else {
+				// Normal case - resolve directly from workspace path
+				absolutePath = path.resolve(workspacePath, filePath);
 			}
+			debugLog(
+				`File selected: Relative='${filePath}', Absolute='${absolutePath}'`,
+			);
 
-			// Get existing documentation
-			const doc = docManager.getDocumentation(filePath);
-			if (doc) {
-				setSelectedFileContent(doc.content);
-				setSelectedFileDocs(doc.summary);
-
-				// Update the file structure with the preview
-				setFileStructure(prevStructure => {
-					if (!prevStructure) return null;
-					return updateFilePreview(prevStructure, filePath, doc.preview);
-				});
-			}
-		} catch (err) {
-			const errorMsg =
-				err instanceof Error ? err.message : 'Failed to load documentation';
-			debugLog(`Error loading documentation: ${errorMsg}`);
-			setError(errorMsg);
-			setSelectedFileContent('Error loading preview');
-			setSelectedFileDocs('Error loading documentation');
-		}
-	};
-
-	/**
-	 * Helper function to update the file preview in the file structure.
-	 * @param {FileNode} node - The current node in the file structure.
-	 * @param {string} targetPath - The path to the file to update.
-	 * @param {string} preview - The new preview content for the file.
-	 * @returns {FileNode} The updated FileNode.
-	 */
-	const updateFilePreview = (
-		node: FileNode,
-		targetPath: string,
-		preview: string,
-	): FileNode => {
-		if (node.type === 'file' && node.name === path.basename(targetPath)) {
-			return {
-				...node,
-				preview,
-			};
-		}
-
-		if (node.type === 'directory' && node.children) {
-			return {
-				...node,
-				children: node.children.map(child =>
-					updateFilePreview(child, targetPath, preview),
-				),
-			};
-		}
-
-		return node;
-	};
-
-	// Add clipboard handler
-	const handleCopy = async () => {
-		if (selectedFileDocs) {
 			try {
-				await navigator.clipboard.writeText(selectedFileDocs);
-				setCopySuccess(true);
+				// Basic check if the resolved path exists before reading
+				if (!fs.existsSync(absolutePath)) {
+					debugLog(`Selected file path does not exist: ${absolutePath}`);
+					setError(`File not found: ${filePath}`); // Show relative path in error
+					return;
+				}
+
+				const fileName = path.basename(filePath);
+
+				// Handle common files - show preview
+				if (isCommonFile(fileName)) {
+					debugLog(`Reading common file preview: ${absolutePath}`);
+					const preview = getFilePreview(absolutePath, 20);
+					setSelectedFileContent(preview);
+					setSelectedFileDocs('(Common file type - preview only)');
+					return;
+				}
+
+				// For other files, try to get docs from DocManager using relative path
+				debugLog(`Getting documentation for relative path: ${filePath}`);
+				const doc = docManager.getDocumentation(filePath); // Use relative path
+
+				if (doc && doc.summary) {
+					debugLog(`Documentation found for: ${filePath}`);
+					setSelectedFileContent(
+						doc.content || doc.preview || 'No content available',
+					);
+					setSelectedFileDocs(doc.summary);
+				} else {
+					debugLog(
+						`No cached documentation for: ${filePath}. Showing file preview.`,
+					);
+					const preview = getFilePreview(absolutePath, 15); // Use absolute path
+					setSelectedFileContent(preview);
+					setSelectedFileDocs('(No documentation generated yet)');
+				}
 			} catch (err) {
-				debugLog(`Error copying to clipboard: ${err}`);
+				const errorMsg =
+					err instanceof Error ? err.message : 'Failed to load file details';
+				debugLog(
+					`Error during file selection processing for ${absolutePath}: ${err}`,
+				);
+				setError(`Error loading details for ${filePath}: ${errorMsg}`); // Show relative path in error
 			}
-		}
-	};
+		},
+		[workspacePath, docManager], // Dependencies
+	);
 
-	// Add key handler for copying
-	useEffect(() => {
-		const handleKeyPress = (key: Buffer) => {
-			// Check for Ctrl+C (3) or Cmd+C (3)
-			if (key[0] === 3 && selectedFileDocs) {
-				handleCopy();
-			}
-		};
-
-		process.stdin.on('data', handleKeyPress);
-		return () => {
-			process.stdin.removeListener('data', handleKeyPress);
-		};
-	}, [selectedFileDocs]);
-
-	if (error) {
+	if (error && !isLoading) {
+		// Only show root initialization error if not loading
 		return (
 			<Box flexDirection="column">
-				<Text color="red">Error: {error}</Text>
+				{/* Display the formatted error from state */}
+				<Text color="red">{error}</Text>
 				<Box marginTop={1}>
 					<Text>Press Ctrl+B to go back to menu</Text>
 				</Box>
@@ -457,7 +439,10 @@ const GenerateMode: React.FC<{
 	if (!fileStructure) {
 		return (
 			<Box>
-				<Text>Loading...</Text>
+				<Text color="yellow">Workspace scan failed or directory is empty.</Text>
+				<Box marginTop={1}>
+					<Text>Press Ctrl+B to go back to menu</Text>
+				</Box>
 			</Box>
 		);
 	}
@@ -466,38 +451,65 @@ const GenerateMode: React.FC<{
 		<Box flexDirection="column">
 			<Box marginBottom={1}>
 				<Text bold>Documentation Browser - {workspacePath}</Text>
-				<Text> (Press Ctrl+B to go back to menu)</Text>
+				<Text> (Press Ctrl+B to go back)</Text>
 				{copySuccess && <Text color="green"> ✓ Copied to clipboard!</Text>}
 			</Box>
 			<Box>
 				<Box width="50%" marginRight={2}>
 					<FileTree
-						files={fileStructure}
+						files={fileStructure} // Pass the root FileNode
 						onSelect={handleFileSelect}
-						selectedFile={selectedFile}
+						selectedFile={selectedFile} // Pass relative path string
 					/>
 				</Box>
 				<Box width="50%" flexDirection="column">
-					{selectedFile && (
+					{/* Right Pane Logic */}
+					{!selectedFile && (
+						<Text>Select a file from the tree to view details.</Text>
+					)}
+					{/* Show loading specifically when a file is selected but details aren't loaded yet */}
+					{selectedFile && !selectedFileDocs && !error && (
+						<Text color="gray">
+							Loading details for {path.basename(selectedFile)}...
+						</Text>
+					)}
+					{/* Show file-specific error if one occurred during handleFileSelect */}
+					{selectedFile && error && <Text color="red">{error}</Text>}
+					{/* Show details only if docs are loaded (implies content is also potentially loaded) */}
+					{selectedFile && selectedFileDocs && !error && (
 						<>
-							<Text bold>File: {selectedFile.split('/').pop()}</Text>
-							{selectedFileDocs && (
+							<Text bold>File: {path.basename(selectedFile)}</Text>
+							{/* Documentation Section */}
+							<Box marginTop={1} flexDirection="column">
+								<Text bold>Documentation:</Text>
+								<Box
+									borderStyle="round"
+									borderColor="gray"
+									paddingX={1}
+									marginY={1}
+								>
+									<Text>{selectedFileDocs}</Text>
+								</Box>
+								{selectedFileDocs && !selectedFileDocs.startsWith('(') && (
+									<Text dimColor> (Press Shift+C to copy)</Text>
+								)}
+							</Box>
+							{/* Preview/Content Section */}
+							{selectedFileContent && (
 								<Box marginTop={1} flexDirection="column">
-									<Text bold>Documentation:</Text>
-									<Box marginLeft={1} marginTop={1}>
-										<Text>{selectedFileDocs}</Text>
-										<Text dimColor> (Press Cmd/Ctrl+C to copy)</Text>
+									<Text bold>Preview/Content:</Text>
+									<Box
+										borderStyle="round"
+										borderColor="gray"
+										paddingX={1}
+										marginY={1}
+										height={15} // Use fixed height
+										overflowY="hidden"
+									>
+										<Text dimColor>{selectedFileContent}</Text>
 									</Box>
 								</Box>
 							)}
-							<Box marginTop={1} flexDirection="column">
-								<Text bold>Preview:</Text>
-								<Box marginLeft={1} marginTop={1}>
-									<Text dimColor>
-										{selectedFileContent?.split('\n').slice(0, 5).join('\n')}
-									</Text>
-								</Box>
-							</Box>
 						</>
 					)}
 				</Box>
@@ -513,17 +525,7 @@ const ChatMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 			onBack();
 		}
 	});
-
-	return (
-		// <Box flexDirection="column">
-		// 	<Box marginBottom={1}>
-		// 		<Text bold>Chat with Codebase</Text>
-		// 		<Text> (Press Ctrl+B to go back to menu)</Text>
-		// 	</Box>
-		// 	<Text>Chat feature coming soon...</Text>
-		// </Box>
-		<ChatInterface />
-	);
+	return <ChatInterface />;
 };
 
 // Function to handle config
@@ -533,24 +535,28 @@ const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 	const [message, setMessage] = useState<string | null>(null);
 
 	useInput((input, key) => {
-		// Check for Alt+B instead of just B
 		if (key.ctrl && input.toLowerCase() === 'b') {
 			if (!isEditing) {
 				onBack();
 			}
-		} else if (input === 'e' && !isEditing) {
-			// Allow editing again with 'e'
+		} else if (input.toLowerCase() === 'e' && !isEditing) {
 			setIsEditing(true);
+			setMessage(null);
 		}
 	});
 
 	const handleSubmit = (value: string) => {
-		setApiKey(value);
-		setIsEditing(false);
-		// Display success message
-		updateApiKey(value);
-
-		setMessage('API key saved successfully! Press Ctrl+B to go back to menu.');
+		const trimmedValue = value.trim();
+		if (trimmedValue) {
+			setApiKey(trimmedValue);
+			setIsEditing(false);
+			updateApiKey(trimmedValue);
+			setMessage(
+				'API key saved successfully! Press Ctrl+B to go back to menu.',
+			);
+		} else {
+			setMessage('API key cannot be empty.');
+		}
 	};
 
 	return (
@@ -559,36 +565,40 @@ const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 				<Text bold>Configuration</Text>
 				<Text>
 					{' '}
-					({isEditing ? 'Enter to save' : 'Press Ctrl+B to go back to menu'})
+					(
+					{isEditing
+						? 'Enter to save, Ctrl+C to cancel edit'
+						: 'Press Ctrl+B to go back, E to edit'}
+					)
 				</Text>
 			</Box>
 
-			<Box marginY={1}>
+			<Box marginY={1} flexDirection="row">
 				<Text>Google API Key: </Text>
 				{isEditing ? (
 					<TextInput
 						value={apiKey}
 						onChange={setApiKey}
 						onSubmit={handleSubmit}
-						placeholder="Enter your Google API key"
+						placeholder="Enter your Google API key here..."
 						showCursor
 					/>
 				) : (
 					<Text color="green">
-						{apiKey.substring(0, 4)}...{apiKey.substring(apiKey.length - 4)}
+						{apiKey.length > 8
+							? `${apiKey.substring(0, 4)}...${apiKey.substring(
+									apiKey.length - 4,
+							  )}`
+							: '****'}
 					</Text>
 				)}
 			</Box>
 
-			{!isEditing && (
-				<Box marginTop={1}>
-					<Text color="cyan">Press 'e' to edit API key again</Text>
-				</Box>
-			)}
-
 			{message && (
 				<Box marginTop={1}>
-					<Text color="green">{message}</Text>
+					<Text color={message.includes('successfully') ? 'green' : 'yellow'}>
+						{message}
+					</Text>
 				</Box>
 			)}
 
@@ -597,6 +607,7 @@ const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 					Your API key will be used for code analysis and generating
 					documentation.
 				</Text>
+				<Text dimColor>It is stored locally in your configuration.</Text>
 			</Box>
 		</Box>
 	);
@@ -607,8 +618,18 @@ const ConfigMode: React.FC<{onBack: () => void}> = ({onBack}) => {
  * @param {AppProps} props - The props for the component, including the workspace path.
  * @returns {JSX.Element} The rendered component.
  */
-const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
+const App: React.FC<AppProps> = ({path: initialPath = process.cwd()}) => {
+	// Resolve the initial path to an absolute path ONCE.
+	const workspacePath = path.resolve(initialPath);
+	debugLog(`Resolved workspace path: ${workspacePath}`);
+
 	const [activeMode, setActiveMode] = useState<MenuOption | null>(null);
+	const {exit} = useApp();
+
+	useEffect(() => {
+		const parser = new Parser();
+		generateDirectoryTreeJson(initialPath, parser);
+	}, [initialPath]);
 
 	const handleMenuSelect = (option: MenuOption) => {
 		setActiveMode(option);
@@ -619,8 +640,8 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	};
 
 	useInput((input, key) => {
-		if (key.ctrl && input.toLowerCase() === 'b') {
-			handleBack();
+		if (activeMode === null && key.ctrl && input.toLowerCase() === 'c') {
+			exit();
 		}
 	});
 
@@ -630,39 +651,56 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 
 	switch (activeMode) {
 		case 'generate':
+			// Pass the consistently resolved absolute path
 			return <GenerateMode workspacePath={workspacePath} onBack={handleBack} />;
 		case 'chat':
 			return <ChatMode onBack={handleBack} />;
 		case 'config':
 			return <ConfigMode onBack={handleBack} />;
 		default:
+			debugLog(`Invalid mode encountered: ${activeMode}. Returning to menu.`);
+			setActiveMode(null);
 			return <Menu onSelect={handleMenuSelect} />;
 	}
 };
 
 /**
- * Helper function to get all files from the file structure.
- * @param {FileNode} node - The root node of the file structure.
- * @param {string} [currentPath=''] - The current path being traversed.
- * @returns {string[]} An array of file paths.
+ * Helper function to get all files from the file structure recursively.
+ * Returns relative paths based on the initial node.
  */
 const getAllFilesFromStructure = (
 	node: FileNode,
-	currentPath = '',
+	currentRelativePath = '', // Start with empty relative path
 ): string[] => {
-	const path = currentPath ? `${currentPath}/${node.name}` : node.name;
+	// Build the relative path for the current node
+	const nodePath = currentRelativePath
+		? path.join(currentRelativePath, node.name)
+		: node.name;
 
 	if (node.type === 'file') {
-		return [path];
+		// Only return the path if it's likely a code file we can document
+		// This prevents trying to document things like LICENSE, .json, etc.
+		const ext = path.extname(node.name).toLowerCase();
+		if (
+			INTERESTING_EXTENSIONS.has(ext) &&
+			!COMMON_FILES.has(ext) &&
+			!COMMON_FILES.has(node.name) &&
+			!node.name.startsWith('.')
+		) {
+			return [nodePath]; // Return the relative path
+		} else {
+			return []; // Don't include non-documentable files
+		}
 	}
 
 	if (node.type === 'directory' && node.children) {
+		// Recursively call for children, passing the current node's relative path
 		return node.children.flatMap(child =>
-			getAllFilesFromStructure(child, path),
+			getAllFilesFromStructure(child, nodePath),
 		);
 	}
 
-	return []; // Return empty array for any other case (like directory without children)
+	return []; // Return empty array for empty directories or other cases
 };
 
 export default App;
