@@ -11,10 +11,14 @@ interface Message {
 /**
  * A terminal-based chatbot interface component using Ink.
  */
-const ChatInterface: React.FC = () => {
+export const ChatInterface: React.FC = () => {
 	// State for the list of messages in the chat
 	const [messages, setMessages] = useState<Message[]>([
-		{id: 0, sender: 'bot', text: 'Welcome! Ask me anything.'},
+		{
+			id: 0,
+			sender: 'bot',
+			text: 'Welcome! Ask me anything about your codebase.',
+		},
 	]);
 	// State for the current text entered by the user
 	const [inputValue, setInputValue] = useState<string>('');
