@@ -2,76 +2,44 @@
   "files": {
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/api/flash.ts": {
       "file_hash": "7033911206044838a6c6c7fed2912d4f",
-      "lastParsed": 1745126748539
+      "lastParsed": 1745139267559
     },
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/app.tsx": {
-      "file_hash": "f676237e82500bd482c890db4a19772b",
-      "lastParsed": 1745126748539
+      "file_hash": "daa44d5667aa2d6422bd5fc57b9808a1",
+      "lastParsed": 1745139267564
     },
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/cli.tsx": {
       "file_hash": "828343fed4897c8b0379d6757419cde4",
-      "lastParsed": 1745126748539
+      "lastParsed": 1745139267570
     },
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/components/FileTree.tsx": {
-      "file_hash": "ca7f145f5725c9749721a8ccde1832cb",
-      "lastParsed": 1745126748539
+      "file_hash": "406f2bc947066cbcdb6c59b5da4222c5",
+      "lastParsed": 1745139267571
     },
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/components/LoadingCat.tsx": {
       "file_hash": "b7cb33cd9dd00de990f8549dc8ec1ce2",
-      "lastParsed": 1745126748539
+      "lastParsed": 1745139267573
     },
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/services/DocManager.ts": {
-      "file_hash": "b87c9e2001f81669d3e52586c7e25529",
-      "lastParsed": 1745126748539
+      "file_hash": "4f179344533527fb57f5920f34d366d2",
+      "lastParsed": 1745139267575
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/services/DocStringManager.ts": {
+      "file_hash": "8c7a4bbfccab47345de7457272de6be5",
+      "lastParsed": 1745139267577
     },
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/treesitter.ts": {
-      "file_hash": "22c46399157b05f82886243eae9638bd",
-      "lastParsed": 1745126748539
+      "file_hash": "caa31599c9975d01d14259ff3bde1071",
+      "lastParsed": 1745139267579
     },
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/types/docs.ts": {
       "file_hash": "7e5e70d1521688e38a197199b3ad6da3",
-      "lastParsed": 1745126748551
+      "lastParsed": 1745139267582
     },
     "/Users/ryannguyen/projects/typescript/davishacks/davishacks/test.tsx": {
       "file_hash": "c485b6db6529bbd45f5086b07302864b",
-      "lastParsed": 1745126748551
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/api/flash.ts": {
-      "file_hash": "7033911206044838a6c6c7fed2912d4f",
-      "lastParsed": 1745127446773
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/source/app.tsx": {
-      "file_hash": "e400d6202d38cf570d2d88613063151c",
-      "lastParsed": 1745127446774
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/source/cli.tsx": {
-      "file_hash": "828343fed4897c8b0379d6757419cde4",
-      "lastParsed": 1745127446774
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/source/components/FileTree.tsx": {
-      "file_hash": "406f2bc947066cbcdb6c59b5da4222c5",
-      "lastParsed": 1745127446775
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/source/components/LoadingCat.tsx": {
-      "file_hash": "b7cb33cd9dd00de990f8549dc8ec1ce2",
-      "lastParsed": 1745127446775
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/source/services/DocManager.ts": {
-      "file_hash": "02166d3209843bfac7cb1907d7ec3a60",
-      "lastParsed": 1745127446775
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/source/treesitter.ts": {
-      "file_hash": "22c46399157b05f82886243eae9638bd",
-      "lastParsed": 1745127446785
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/source/types/docs.ts": {
-      "file_hash": "7e5e70d1521688e38a197199b3ad6da3",
-      "lastParsed": 1745127446785
-    },
-    "/Users/danielung/Desktop/projects/davishacks/davishacks/test.tsx": {
-      "file_hash": "c485b6db6529bbd45f5086b07302864b",
-      "lastParsed": 1745127446785
+      "lastParsed": 1745139267584
     }
   },
-  "lastUpdated": 1745127446785
+  "lastUpdated": 1745139267585
 }

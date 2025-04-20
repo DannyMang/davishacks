@@ -8,11 +8,29 @@ import {generateDirectoryTreeJson} from './treesitter.js';
 import Parser from 'tree-sitter';
 import {LoadingCat} from './components/LoadingCat.js';
 
+/**
+ * Interface representing a node in the file tree.
+ */
 interface FileNode {
+	/**
+	 * The name of the file or directory.
+	 */
 	name: string;
+	/**
+	 * The type of the node, either 'file' or 'directory'.
+	 */
 	type: 'file' | 'directory';
+	/**
+	 * An optional array of child nodes if the node is a directory.
+	 */
 	children?: FileNode[];
+	/**
+	 * Optional documentation string associated with the file.
+	 */
 	documentation?: string;
+	/**
+	 * Optional preview of the file's content.
+	 */
 	preview?: string;
 }
 
@@ -63,6 +81,11 @@ try {
 	console.error('Failed to initialize logging:', error);
 }
 
+/**
+ * Logs a debug message to the log file if DEBUG is true.
+ * @param {string} message - The message to log.
+ * @returns {void}
+ */
 const debugLog = (message: string) => {
 	if (DEBUG) {
 		const timestamp = new Date().toISOString();
@@ -77,6 +100,11 @@ const debugLog = (message: string) => {
 
 debugLog('Logging system initialized');
 
+/**
+ * Retrieves a preview of a file's content by reading the first 5 lines.
+ * @param {string} filePath - The path to the file.
+ * @returns {string} A string containing the first 5 lines of the file, or an error message if the file cannot be read.
+ */
 const getFilePreview = (filePath: string): string => {
 	try {
 		const content = fs.readFileSync(filePath, 'utf-8');
@@ -87,6 +115,12 @@ const getFilePreview = (filePath: string): string => {
 	}
 };
 
+/**
+ * Recursively reads a directory and its subdirectories to create a file tree structure.
+ * @param {string} dirPath - The path to the directory to read.
+ * @param {number} [level=0] - The current level of recursion (used for indentation).
+ * @returns {FileNode} A FileNode object representing the directory and its contents.
+ */
 const readDirectory = (dirPath: string, level = 0): FileNode => {
 	const indent = '  '.repeat(level);
 	const name = path.basename(dirPath);
@@ -165,10 +199,21 @@ const readDirectory = (dirPath: string, level = 0): FileNode => {
 	}
 };
 
+/**
+ * Interface defining the props for the App component.
+ */
 interface AppProps {
+	/**
+	 * The workspace path to display documentation for. Defaults to the current working directory.
+	 */
 	path?: string;
 }
 
+/**
+ * Main application component that displays a file tree and documentation for selected files.
+ * @param {AppProps} props - The props for the component, including the workspace path.
+ * @returns {JSX.Element} The rendered component.
+ */
 const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	const [fileStructure, setFileStructure] = useState<FileNode | null>(null);
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -181,22 +226,28 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	const [loadingMessage, setLoadingMessage] = useState('Initializing...');
 	const [docManager] = useState(() => {
 		// Remove any duplicate davishacks from the workspace path
-		const normalizedPath = workspacePath.replace(/davishacks\/davishacks/, 'davishacks');
+		const normalizedPath = workspacePath.replace(
+			/davishacks\/davishacks/,
+			'davishacks',
+		);
 		return new DocManager(normalizedPath);
 	});
 
 	const parser = new Parser();
 
 	useEffect(() => {
-		generateDirectoryTreeJson(process.cwd(), parser);
+		async function process() {
+			generateDirectoryTreeJson(workspacePath, parser, true, true);
+		}
+		process();
 		debugLog('=== Starting file scan ===');
-		debugLog(`Current directory: ${process.cwd()}`);
+		debugLog(`Current directory: ${workspacePath}`);
 		debugLog(`Target path: ${workspacePath}`);
 
 		const initialize = async () => {
 			try {
 				debugLog('=== Starting initialization ===');
-				debugLog(`Current directory: ${process.cwd()}`);
+				debugLog(`Current directory: ${workspacePath}`);
 				debugLog(`Target path: ${workspacePath}`);
 
 				// Normalize the workspace path
@@ -247,6 +298,11 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 		}
 	}, [workspacePath, docManager]);
 
+	/**
+	 * Handles the selection of a file in the file tree, loading its content and documentation.
+	 * @param {string} filePath - The path to the selected file.
+	 * @returns {Promise<void>}
+	 */
 	const handleFileSelect = async (filePath: string) => {
 		setSelectedFile(filePath);
 		try {
@@ -272,7 +328,13 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 		}
 	};
 
-	// Helper function to update file preview in the structure
+	/**
+	 * Helper function to update the file preview in the file structure.
+	 * @param {FileNode} node - The current node in the file structure.
+	 * @param {string} targetPath - The path to the file to update.
+	 * @param {string} preview - The new preview content for the file.
+	 * @returns {FileNode} The updated FileNode.
+	 */
 	const updateFilePreview = (
 		node: FileNode,
 		targetPath: string,
@@ -345,7 +407,9 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 							<Box marginTop={1} flexDirection="column">
 								<Text bold>Preview:</Text>
 								<Box marginLeft={1} marginTop={1}>
-									<Text dimColor>{selectedFileContent?.split('\n').slice(0, 5).join('\n')}</Text>
+									<Text dimColor>
+										{selectedFileContent?.split('\n').slice(0, 5).join('\n')}
+									</Text>
 								</Box>
 							</Box>
 						</>
@@ -356,7 +420,12 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	);
 };
 
-// Helper function to get all files from the file structure
+/**
+ * Helper function to get all files from the file structure.
+ * @param {FileNode} node - The root node of the file structure.
+ * @param {string} [currentPath=''] - The current path being traversed.
+ * @returns {string[]} An array of file paths.
+ */
 const getAllFilesFromStructure = (
 	node: FileNode,
 	currentPath = '',

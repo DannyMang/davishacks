@@ -1,3 +1,4 @@
+```typescript
 import { GoogleGenAI } from "@google/genai";
 import * as dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
@@ -19,6 +20,10 @@ if (!apiKey) {
 // Initialize the model
 const genAI =  new GoogleGenAI({ apiKey: apiKey });
 
+/**
+ * Main function to interact with the Gemini model and generate content.
+ * It sends a text prompt and logs the response to the console.
+ */
 async function main() {
     try {
         // For text-only input, use the gemini-pro model
@@ -35,3 +40,4 @@ async function main() {
 }
 
 main();
+```

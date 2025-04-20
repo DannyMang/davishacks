@@ -3,8 +3,11 @@ import React from 'react';
 import {render} from 'ink';
 import meow from 'meow';
 import App from './app.js';
-import { DocManager } from './services/DocManager.js';
+import {DocManager} from './services/DocManager.js';
 
+/**
+ * Represents the CLI configuration using meow.
+ */
 const cli = meow(
 	`
 	Usage
@@ -27,20 +30,29 @@ const cli = meow(
 		flags: {
 			path: {
 				type: 'string',
-				default: process.cwd()
-			}
-		}
-	}
+				default: process.cwd(),
+			},
+		},
+	},
 );
 
+/**
+ * The command to execute, defaulting to 'browse'.
+ */
 const [command = 'browse'] = cli.input;
 
+/**
+ * Generates documentation for changed files in a given workspace path.
+ *
+ * @param {string} workspacePath - The path to the project directory.
+ * @returns {Promise<void>}
+ */
 async function generateDocs(workspacePath: string) {
 	try {
 		console.log('Generating documentation for changed files...');
 		const docManager = new DocManager(workspacePath);
 		const changedFiles = await docManager.getChangedFiles();
-		
+
 		if (changedFiles.length === 0) {
 			console.log('No changed files found.');
 			return;

@@ -8,6 +8,7 @@ import TypeScriptModule = require('tree-sitter-typescript');
 const TypeScriptLang = TypeScriptModule.typescript;
 const TSXLang = TypeScriptModule.tsx;
 import * as crypto from 'crypto';
+import {generateDocStrings} from './services/DocStringManager.js';
 
 const IMPORTANT_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx', '.py'];
 
@@ -153,7 +154,7 @@ function getCachePath(rootDir: string): string {
 	return path.join(rootDir, `.${safeRootDirName}.cache.json`);
 }
 
-function getTreeJsonPath(rootDir: string): string {
+export function getTreeJsonPath(rootDir: string): string {
 	const rootDirName = path.basename(rootDir);
 	const safeRootDirName = rootDirName.replace(/[^a-zA-Z0-9_\-\.]/g, '_');
 	return path.join(rootDir, `${safeRootDirName}.tree.json`);
@@ -181,6 +182,79 @@ function saveCache(rootDir: string, cache: ProjectCache): void {
 	} catch (error) {
 		debugLog(`Error saving cache to ${cachePath}: ${error}`);
 	}
+}
+
+export function findFileInTree(
+	tree: any,
+	targetFile: string,
+	exactMatch: boolean = false,
+): FileStructure | null {
+	// Helper function for recursive search
+	function search(obj: any, currentPath: string = ''): FileStructure | null {
+		// Base case: if this is a file structure
+		if (obj && typeof obj === 'object' && obj.type === 'file_structure') {
+			// Check if this is our target file
+			if (exactMatch && obj.filePath === targetFile) {
+				return obj;
+			} else if (
+				!exactMatch &&
+				(obj.filePath.includes(targetFile) ||
+					obj.filePath.endsWith('/' + targetFile))
+			) {
+				return obj;
+			}
+			return null;
+		}
+		// If this is a directory, search all its children
+		if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+			for (const key in obj) {
+				const result = search(obj[key], currentPath + '/' + key);
+				if (result) return result;
+			}
+		}
+		return null;
+	}
+	return search(tree);
+}
+
+export function updateFileInTree(
+	tree: any,
+	targetFile: string,
+	updateFn: (fileStructure: any) => any,
+): any {
+	// Deep clone the tree to avoid mutation
+	const clonedTree = JSON.parse(JSON.stringify(tree));
+
+	// Helper function for recursive search and update
+	function searchAndUpdate(obj: any, currentPath: string = ''): boolean {
+		// Base case: if this is a file structure
+		if (obj && typeof obj === 'object' && obj.type === 'file_structure') {
+			// Check if this is our target file
+			if (
+				obj.filePath === targetFile ||
+				obj.filePath.endsWith('/' + targetFile)
+			) {
+				// Update the object using the provided function
+				Object.assign(obj, updateFn(obj));
+				return true; // Found and updated
+			}
+			return false;
+		}
+
+		// If this is a directory, search all its children
+		if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+			for (const key in obj) {
+				if (searchAndUpdate(obj[key], currentPath + '/' + key)) {
+					return true; // Propagate success upward
+				}
+			}
+		}
+
+		return false; // Not found in this branch
+	}
+
+	searchAndUpdate(clonedTree);
+	return clonedTree;
 }
 
 function loadExistingTree(rootDir: string): DirectoryTree | null {
@@ -299,6 +373,49 @@ function getQueryForLanguage(language: Language, scheme: string): Query | null {
 		);
 		console.error(`Query String:\n${queryString}`);
 		return null;
+	}
+}
+
+export function updateFileHashes(
+	rootDir: string,
+	changedFiles: string[],
+): void {
+	// Get the tree JSON path and load it
+	const treeJsonPath = getTreeJsonPath(rootDir);
+
+	try {
+		// Read and parse the existing tree
+		const treeJsonContent = fs.readFileSync(treeJsonPath, 'utf8');
+		let treeJson = JSON.parse(treeJsonContent);
+
+		console.log(`Updating hashes for ${changedFiles.length} changed files`);
+
+		// Process each changed file
+		for (const filePath of changedFiles) {
+			try {
+				// Read current file content
+				const fullPath = path.join(rootDir, filePath);
+				const content = fs.readFileSync(fullPath, 'utf8');
+				const newHash = generateHash(content);
+
+				// Update the file structure in the tree
+				treeJson = updateFileInTree(treeJson, filePath, fileStructure => {
+					console.log(`Updating hash for ${filePath}`);
+					return {
+						...fileStructure,
+						file_hash: newHash,
+					};
+				});
+			} catch (error) {
+				console.error(`Error updating hash for ${filePath}: ${error}`);
+			}
+		}
+
+		// Write the updated tree back to file
+		fs.writeFileSync(treeJsonPath, JSON.stringify(treeJson, null, 2));
+		console.log(`Updated tree JSON saved to ${treeJsonPath}`);
+	} catch (error) {
+		console.error(`Error updating file hashes: ${error}`);
 	}
 }
 
@@ -695,12 +812,14 @@ function buildTreeRecursive(
  * @param rootDir The absolute path to the root directory to scan.
  * @param parser A Tree-sitter parser instance.
  * @param force Whether to force re-parsing of all files, ignoring the cache
+ * @param generateDocs Whether to generate docstrings for changed files (default: false)
  */
-export function generateDirectoryTreeJson(
+export async function generateDirectoryTreeJson(
 	rootDir: string,
 	parser: Parser,
 	force: boolean = false,
-): {tree: DirectoryTree; updatedPaths: Set<string>} {
+	generateDocs: boolean = false,
+): Promise<{tree: DirectoryTree; updatedPaths: Set<string>}> {
 	debugLog(
 		`=== Starting directory scan for ${rootDir} ${
 			force ? '(forced update)' : ''
@@ -775,6 +894,33 @@ export function generateDirectoryTreeJson(
 		debugLog(`Successfully wrote directory tree JSON to: ${outputFilePath}`);
 		console.log(`Successfully generated structure file: ${outputFilePath}`);
 		console.log(`Updated ${updatedPaths.size} files`);
+
+		// Generate docstrings for changed files if enabled
+		if (generateDocs && updatedPaths.size > 0) {
+			debugLog('Generating docstrings for updated files...');
+
+			// Process each file that was updated
+			for (const relativeFilePath of updatedPaths) {
+				try {
+					// Skip files we don't want to document
+					const ext = path.extname(relativeFilePath).toLowerCase();
+					if (
+						['.js', '.jsx', '.ts', '.tsx', '.py'].includes(ext) &&
+						!relativeFilePath.includes('.tree.json')
+					) {
+						const fullPath = path.join(rootDir, relativeFilePath);
+						debugLog(`Generating docstrings for ${relativeFilePath}`);
+						await generateDocStrings(fullPath);
+					}
+				} catch (error) {
+					debugLog(
+						`Error generating docstrings for ${relativeFilePath}: ${error}`,
+					);
+				}
+			}
+
+			debugLog('Docstring generation complete');
+		}
 	} catch (error) {
 		debugLog(
 			`Error writing directory tree JSON file to ${outputFilePath}: ${error}`,
@@ -801,14 +947,16 @@ export function monitorDirectoryChanges(
 	parser: Parser,
 	intervalMs: number = 5000,
 	callback?: (updatedFiles: string[]) => void,
+	generateDocs: boolean = false,
 ): () => void {
 	debugLog(
 		`Starting continuous monitoring of ${rootDir} (interval: ${intervalMs}ms)`,
 	);
 	console.log(`Starting continuous monitoring of ${rootDir}`);
+	console.log(`Docstring generation: ${generateDocs ? 'enabled' : 'disabled'}`);
 
 	let isRunning = false;
-	const interval = setInterval(() => {
+	const interval = setInterval(async () => {
 		if (isRunning) {
 			debugLog('Skipping check as previous scan is still running');
 			return;
@@ -816,10 +964,16 @@ export function monitorDirectoryChanges(
 
 		isRunning = true;
 		try {
-			const {updatedPaths} = generateDirectoryTreeJson(rootDir, parser);
+			const result = await generateDirectoryTreeJson(
+				rootDir,
+				parser,
+				false,
+				generateDocs,
+			);
+			const updatedPaths = result.updatedPaths;
 
 			if (updatedPaths.size > 0) {
-				const updatedFiles = Array.from(updatedPaths);
+				const updatedFiles = Array.from(updatedPaths) as string[];
 				debugLog(`Detected changes in ${updatedPaths.size} files`);
 
 				if (callback && typeof callback === 'function') {

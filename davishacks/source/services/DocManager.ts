@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { simpleGit, SimpleGit } from 'simple-git';
-import { GoogleGenAI } from "@google/genai";
-import { FileDocumentation, ProjectDocumentation } from '../types/docs.js';
-import * as dotenv from 'dotenv';
+import {simpleGit, SimpleGit} from 'simple-git';
+import {GoogleGenAI} from '@google/genai';
+import {FileDocumentation, ProjectDocumentation} from '../types/docs.js';
+import {apiKey} from './ConfigMangagement.js';
 
 // Debug logging setup
 const DEBUG = true;
@@ -12,205 +12,205 @@ const LOG_FILE = path.join(LOGS_DIR, 'davishacks-debug.log');
 
 // Initialize logging
 try {
-    if (!fs.existsSync(LOGS_DIR)) {
-        fs.mkdirSync(LOGS_DIR, { recursive: true });
-    }
+	if (!fs.existsSync(LOGS_DIR)) {
+		fs.mkdirSync(LOGS_DIR, {recursive: true});
+	}
 } catch (error) {
-    console.error('Failed to initialize logging:', error);
+	console.error('Failed to initialize logging:', error);
 }
 
 const debugLog = (message: string) => {
-    if (DEBUG) {
-        const timestamp = new Date().toISOString();
-        const logMessage = `[${timestamp}] ${message}\n`;
-        try {
-            fs.appendFileSync(LOG_FILE, logMessage);
-        } catch (error) {
-            // Silently fail as we can't use console.log during operations
-        }
-    }
+	if (DEBUG) {
+		const timestamp = new Date().toISOString();
+		const logMessage = `[${timestamp}] ${message}\n`;
+		try {
+			fs.appendFileSync(LOG_FILE, logMessage);
+		} catch (error) {
+			// Silently fail as we can't use console.log during operations
+		}
+	}
 };
 
 debugLog('DocManager logging initialized');
 
 // Load environment variables
-dotenv.config();
-
-const apiKey = process.env['GOOGLE_API_KEY'];
-if (!apiKey) {
-    throw new Error('GOOGLE_API_KEY is not set in environment variables');
-}
 
 export class DocManager {
-    private docsPath: string;
-    private htmlPath: string;
-    private git: SimpleGit;
-    private genAI: GoogleGenAI;
-    private projectDocs: ProjectDocumentation;
-    private workspacePath: string;
-    private readonly BATCH_SIZE = 5; // Number of concurrent API calls
-    private readonly IGNORED_PATTERNS = [
-        /\.json$/,          // Skip JSON files
-        /docs\/files\//,    // Skip documentation files
-        /docs\/html\//      // Skip generated HTML
-    ];
+	private docsPath: string;
+	private htmlPath: string;
+	private git: SimpleGit;
+	private genAI: GoogleGenAI;
+	private projectDocs: ProjectDocumentation;
+	private workspacePath: string;
+	private readonly BATCH_SIZE = 5; // Number of concurrent API calls
+	private readonly IGNORED_PATTERNS = [
+		/\.json$/, // Skip JSON files
+		/docs\/files\//, // Skip documentation files
+		/docs\/html\//, // Skip generated HTML
+	];
 
-    constructor(workspacePath: string) {
-        debugLog(`Initializing DocManager with workspace path: ${workspacePath}`);
-        // Remove any duplicate davishacks from the workspace path and ensure we're in the right directory
-        this.workspacePath = workspacePath.replace(/davishacks\/davishacks/, 'davishacks');
-        if (!this.workspacePath.endsWith('davishacks')) {
-            this.workspacePath = path.join(this.workspacePath, 'davishacks');
-        }
-        
-        // Always create docs in the davishacks directory
-        this.docsPath = path.join(this.workspacePath, 'docs');
-        this.htmlPath = path.join(this.docsPath, 'html');
-        this.git = simpleGit(this.workspacePath);
-        
-        // Initialize Google Gemini
-        if (!apiKey) {
-            throw new Error('GOOGLE_API_KEY is not set in environment variables');
-        }
-        this.genAI = new GoogleGenAI({ apiKey: apiKey});
+	constructor(workspacePath: string) {
+		debugLog(`Initializing DocManager with workspace path: ${workspacePath}`);
+		// Remove any duplicate davishacks from the workspace path and ensure we're in the right directory
+		this.workspacePath = workspacePath.replace(
+			/davishacks\/davishacks/,
+			'davishacks',
+		);
+		if (!this.workspacePath.endsWith('davishacks')) {
+			this.workspacePath = path.join(this.workspacePath, 'davishacks');
+		}
 
-        // Create docs directory if it doesn't exist
-        if (!fs.existsSync(this.docsPath)) {
-            debugLog(`Creating docs directory at: ${this.docsPath}`);
-            fs.mkdirSync(this.docsPath, { recursive: true });
-            fs.mkdirSync(this.htmlPath, { recursive: true });
-            fs.mkdirSync(path.join(this.docsPath, 'files'), { recursive: true });
-        }
+		// Always create docs in the davishacks directory
+		this.docsPath = path.join(this.workspacePath, 'docs');
+		this.htmlPath = path.join(this.docsPath, 'html');
+		this.git = simpleGit(this.workspacePath);
 
-        // Load or initialize project documentation
-        this.projectDocs = this.loadDocs();
-        debugLog('DocManager initialization complete');
-    }
+		// Initialize Google Gemini
+		if (!apiKey) {
+			throw new Error('GOOGLE_API_KEY is not set in environment variables');
+		}
+		this.genAI = new GoogleGenAI({apiKey: apiKey});
 
-    private normalizePath(filePath: string): string {
-        // Remove any leading davishacks/ from the file path
-        return filePath.replace(/^davishacks\/+/, '');
-    }
+		// Create docs directory if it doesn't exist
+		if (!fs.existsSync(this.docsPath)) {
+			debugLog(`Creating docs directory at: ${this.docsPath}`);
+			fs.mkdirSync(this.docsPath, {recursive: true});
+			fs.mkdirSync(this.htmlPath, {recursive: true});
+			fs.mkdirSync(path.join(this.docsPath, 'files'), {recursive: true});
+		}
 
-    private loadDocs(): ProjectDocumentation {
-        const docsFile = path.join(this.docsPath, 'docs.json');
-        debugLog(`Loading docs from: ${docsFile}`);
-        
-        if (fs.existsSync(docsFile)) {
-            return JSON.parse(fs.readFileSync(docsFile, 'utf-8'));
-        }
-        debugLog('No existing docs found, creating new documentation structure');
-        return {
-            version: '1.0.0',
-            lastUpdated: new Date().toISOString(),
-            files: {}
-        };
-    }
-    
+		// Load or initialize project documentation
+		this.projectDocs = this.loadDocs();
+		debugLog('DocManager initialization complete');
+	}
 
-    private saveDocs() {
-        const docsFile = path.join(this.docsPath, 'docs.json');
-        debugLog(`Saving docs to: ${docsFile}`);
-        fs.writeFileSync(docsFile, JSON.stringify(this.projectDocs, null, 2));
-    }
+	private normalizePath(filePath: string): string {
+		// Remove any leading davishacks/ from the file path
+		return filePath.replace(/^davishacks\/+/, '');
+	}
 
-    async getChangedFiles(): Promise<string[]> {
-        const status = await this.git.status();
-        return [
-            ...status.modified,
-            ...status.not_added,
-            ...status.created
-        ];
-    }
+	private loadDocs(): ProjectDocumentation {
+		const docsFile = path.join(this.docsPath, 'docs.json');
+		debugLog(`Loading docs from: ${docsFile}`);
 
-    private getFilePreview(filePath: string): string {
-        try {
-            const content = fs.readFileSync(filePath, 'utf-8');
-            const lines = content.split('\n').slice(0, 5); // Get first 5 lines
-            return lines.join('\n') + (lines.length >= 5 ? '\n...' : '');
-        } catch (error) {
-            debugLog(`Error getting file preview for ${filePath}: ${error}`);
-            return 'Unable to read file content';
-        }
-    }
+		if (fs.existsSync(docsFile)) {
+			return JSON.parse(fs.readFileSync(docsFile, 'utf-8'));
+		}
+		debugLog('No existing docs found, creating new documentation structure');
+		return {
+			version: '1.0.0',
+			lastUpdated: new Date().toISOString(),
+			files: {},
+		};
+	}
 
-    private shouldIgnoreFile(filePath: string): boolean {
-        return this.IGNORED_PATTERNS.some(pattern => pattern.test(filePath));
-    }
+	private saveDocs() {
+		const docsFile = path.join(this.docsPath, 'docs.json');
+		debugLog(`Saving docs to: ${docsFile}`);
+		fs.writeFileSync(docsFile, JSON.stringify(this.projectDocs, null, 2));
+	}
 
-    private async processFileBatch(files: string[]): Promise<void> {
-        const promises = files.map(async (file) => {
-            try {
-                if (this.shouldIgnoreFile(file)) {
-                    debugLog(`Ignoring file: ${file}`);
-                    return;
-                }
+	async getChangedFiles(): Promise<string[]> {
+		const status = await this.git.status();
+		return [...status.modified, ...status.not_added, ...status.created];
+	}
 
-                // Check if file has changed since last documentation
-                const existingDoc = this.getDocumentation(file);
-                if (existingDoc) {
-                    const stats = fs.statSync(path.join(this.workspacePath, this.normalizePath(file)));
-                    const lastModified = new Date(stats.mtime).toISOString();
-                    
-                    if (lastModified <= existingDoc.lastUpdated) {
-                        debugLog(`Skipping unchanged file: ${file}`);
-                        return;
-                    }
-                }
+	private getFilePreview(filePath: string): string {
+		try {
+			const content = fs.readFileSync(filePath, 'utf-8');
+			const lines = content.split('\n').slice(0, 5); // Get first 5 lines
+			return lines.join('\n') + (lines.length >= 5 ? '\n...' : '');
+		} catch (error) {
+			debugLog(`Error getting file preview for ${filePath}: ${error}`);
+			return 'Unable to read file content';
+		}
+	}
 
-                await this.generateDocumentation(file);
-            } catch (error) {
-                debugLog(`Error processing file ${file}: ${error}`);
-            }
-        });
+	private shouldIgnoreFile(filePath: string): boolean {
+		return this.IGNORED_PATTERNS.some(pattern => pattern.test(filePath));
+	}
 
-        await Promise.all(promises);
-    }
+	private async processFileBatch(files: string[]): Promise<void> {
+		const promises = files.map(async file => {
+			try {
+				if (this.shouldIgnoreFile(file)) {
+					debugLog(`Ignoring file: ${file}`);
+					return;
+				}
 
-    async generateAllDocumentation(files: string[]): Promise<void> {
-        debugLog('Starting bulk documentation generation');
-        
-        // Filter out files we should ignore
-        const filesToProcess = files.filter(file => !this.shouldIgnoreFile(file));
-        debugLog(`Processing ${filesToProcess.length} files out of ${files.length} total files`);
+				// Check if file has changed since last documentation
+				const existingDoc = this.getDocumentation(file);
+				if (existingDoc) {
+					const stats = fs.statSync(
+						path.join(this.workspacePath, this.normalizePath(file)),
+					);
+					const lastModified = new Date(stats.mtime).toISOString();
 
-        // Process files in batches
-        for (let i = 0; i < filesToProcess.length; i += this.BATCH_SIZE) {
-            const batch = filesToProcess.slice(i, i + this.BATCH_SIZE);
-            debugLog(`Processing batch ${i / this.BATCH_SIZE + 1} of ${Math.ceil(filesToProcess.length / this.BATCH_SIZE)}`);
-            await this.processFileBatch(batch);
-        }
+					if (lastModified <= existingDoc.lastUpdated) {
+						debugLog(`Skipping unchanged file: ${file}`);
+						return;
+					}
+				}
 
-        // Save all documentation at once
-        this.saveDocs();
-        debugLog('Bulk documentation generation complete');
-    }
+				await this.generateDocumentation(file);
+			} catch (error) {
+				debugLog(`Error processing file ${file}: ${error}`);
+			}
+		});
 
-    async generateDocumentation(filePath: string): Promise<FileDocumentation> {
-        try {
-            debugLog(`Generating documentation for file: ${filePath}`);
-            debugLog(`Workspace path: ${this.workspacePath}`);
-            
-            // Normalize the file path
-            const normalizedFilePath = this.normalizePath(filePath);
-            
-            // Convert relative path to absolute path
-            const absolutePath = path.join(this.workspacePath, normalizedFilePath);
-            
-            debugLog(`Normalized file path: ${normalizedFilePath}`);
-            debugLog(`Resolved absolute path: ${absolutePath}`);
-            
-            if (!fs.existsSync(absolutePath)) {
-                debugLog(`File does not exist at path: ${absolutePath}`);
-                throw new Error(`File not found: ${absolutePath}`);
-            }
+		await Promise.all(promises);
+	}
 
-            const content = fs.readFileSync(absolutePath, 'utf-8');
-            const fileType = path.extname(absolutePath).slice(1);
-            debugLog(`File type: ${fileType}`);
-            
-            // Generate a more concise summary focusing on methods and key functionality
-            const prompt = `Please provide a concise technical summary of this ${fileType} code file. Focus only on:
+	async generateAllDocumentation(files: string[]): Promise<void> {
+		debugLog('Starting bulk documentation generation');
+
+		// Filter out files we should ignore
+		const filesToProcess = files.filter(file => !this.shouldIgnoreFile(file));
+		debugLog(
+			`Processing ${filesToProcess.length} files out of ${files.length} total files`,
+		);
+
+		// Process files in batches
+		for (let i = 0; i < filesToProcess.length; i += this.BATCH_SIZE) {
+			const batch = filesToProcess.slice(i, i + this.BATCH_SIZE);
+			debugLog(
+				`Processing batch ${i / this.BATCH_SIZE + 1} of ${Math.ceil(
+					filesToProcess.length / this.BATCH_SIZE,
+				)}`,
+			);
+			await this.processFileBatch(batch);
+		}
+
+		// Save all documentation at once
+		this.saveDocs();
+		debugLog('Bulk documentation generation complete');
+	}
+
+	async generateDocumentation(filePath: string): Promise<FileDocumentation> {
+		try {
+			debugLog(`Generating documentation for file: ${filePath}`);
+			debugLog(`Workspace path: ${this.workspacePath}`);
+
+			// Normalize the file path
+			const normalizedFilePath = this.normalizePath(filePath);
+
+			// Convert relative path to absolute path
+			const absolutePath = path.join(this.workspacePath, normalizedFilePath);
+
+			debugLog(`Normalized file path: ${normalizedFilePath}`);
+			debugLog(`Resolved absolute path: ${absolutePath}`);
+
+			if (!fs.existsSync(absolutePath)) {
+				debugLog(`File does not exist at path: ${absolutePath}`);
+				throw new Error(`File not found: ${absolutePath}`);
+			}
+
+			const content = fs.readFileSync(absolutePath, 'utf-8');
+			const fileType = path.extname(absolutePath).slice(1);
+			debugLog(`File type: ${fileType}`);
+
+			// Generate a more concise summary focusing on methods and key functionality
+			const prompt = `Please provide a concise technical summary of this ${fileType} code file. Focus only on:
             1. The main purpose of the file
             2. Each method/function with a one-line description
             3. Key data structures or types
@@ -218,43 +218,47 @@ export class DocManager {
 
             Code:
             ${content}`;
-                        
-            debugLog('Generating AI summary...');
-            const response = await this.genAI.models.generateContent({
-                model: "gemini-2.0-flash",
-                contents: prompt,
-            });
 
-            const summary = response.text;
-            debugLog('AI summary generated successfully');
+			debugLog('Generating AI summary...');
+			const response = await this.genAI.models.generateContent({
+				model: 'gemini-2.0-flash',
+				contents: prompt,
+			});
 
-            const doc: FileDocumentation = {
-                path: filePath,
-                lastUpdated: new Date().toISOString(),
-                content,
-                summary: summary || '',
-                type: fileType,
-                hash: (await this.git.revparse(['HEAD'])) || undefined,
-                preview: this.getFilePreview(absolutePath)
-            };
+			const summary = response.text;
+			debugLog('AI summary generated successfully');
 
-            this.projectDocs.files[filePath] = doc;
+			const doc: FileDocumentation = {
+				path: filePath,
+				lastUpdated: new Date().toISOString(),
+				content,
+				summary: summary || '',
+				type: fileType,
+				hash: (await this.git.revparse(['HEAD'])) || undefined,
+				preview: this.getFilePreview(absolutePath),
+			};
 
-            // Save individual file documentation
-            const fileDocPath = path.join(this.docsPath, 'files', `${path.basename(filePath)}.json`);
-            debugLog(`Saving individual file documentation to: ${fileDocPath}`);
-            fs.writeFileSync(fileDocPath, JSON.stringify(doc, null, 2));
+			this.projectDocs.files[filePath] = doc;
 
-            debugLog(`Documentation generated successfully for: ${filePath}`);
-            return doc;
-        } catch (error) {
-            debugLog(`Error generating documentation for ${filePath}: ${error}`);
-            throw error;
-        }
-    }
+			// Save individual file documentation
+			const fileDocPath = path.join(
+				this.docsPath,
+				'files',
+				`${path.basename(filePath)}.json`,
+			);
+			debugLog(`Saving individual file documentation to: ${fileDocPath}`);
+			fs.writeFileSync(fileDocPath, JSON.stringify(doc, null, 2));
 
-    async generateHtml() {
-        const template = `
+			debugLog(`Documentation generated successfully for: ${filePath}`);
+			return doc;
+		} catch (error) {
+			debugLog(`Error generating documentation for ${filePath}: ${error}`);
+			throw error;
+		}
+	}
+
+	async generateHtml() {
+		const template = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -269,7 +273,9 @@ export class DocManager {
         <body>
             <h1>Project Documentation</h1>
             <p>Last updated: ${this.projectDocs.lastUpdated}</p>
-            ${Object.values(this.projectDocs.files).map(file => `
+            ${Object.values(this.projectDocs.files)
+							.map(
+								file => `
                 <div class="file">
                     <h2>${file.path}</h2>
                     <div class="summary">
@@ -277,17 +283,21 @@ export class DocManager {
                         <p>${file.summary}</p>
                     </div>
                     <h3>Source Code</h3>
-                    <pre><code>${file.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+                    <pre><code>${file.content
+											.replace(/</g, '&lt;')
+											.replace(/>/g, '&gt;')}</code></pre>
                 </div>
-            `).join('\n')}
+            `,
+							)
+							.join('\n')}
         </body>
         </html>
         `;
 
-        fs.writeFileSync(path.join(this.htmlPath, 'index.html'), template);
-    }
+		fs.writeFileSync(path.join(this.htmlPath, 'index.html'), template);
+	}
 
-    getDocumentation(filePath: string): FileDocumentation | undefined {
-        return this.projectDocs.files[filePath];
-    }
-} 
+	getDocumentation(filePath: string): FileDocumentation | undefined {
+		return this.projectDocs.files[filePath];
+	}
+}

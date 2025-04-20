@@ -1,6 +1,135 @@
 {
   "davishacks": {
+    "api": {
+      "flash.ts": {
+        "type": "file_structure",
+        "filePath": "api/flash.ts",
+        "items": [
+          {
+            "type": "function",
+            "name": "main",
+            "startLine": 22,
+            "endLine": 35
+          }
+        ],
+        "file_hash": "7033911206044838a6c6c7fed2912d4f"
+      }
+    },
     "source": {
+      "app.tsx": {
+        "type": "file_structure",
+        "filePath": "source/app.tsx",
+        "items": [
+          {
+            "type": "function",
+            "name": "debugLog",
+            "startLine": 66,
+            "endLine": 76
+          },
+          {
+            "type": "function",
+            "name": "getFilePreview",
+            "startLine": 80,
+            "endLine": 88
+          },
+          {
+            "type": "function",
+            "name": "readDirectory",
+            "startLine": 90,
+            "endLine": 166
+          },
+          {
+            "type": "function",
+            "name": "App",
+            "startLine": 172,
+            "endLine": 365
+          },
+          {
+            "type": "function",
+            "name": "process",
+            "startLine": 194,
+            "endLine": 196
+          },
+          {
+            "type": "function",
+            "name": "initialize",
+            "startLine": 202,
+            "endLine": 235
+          },
+          {
+            "type": "function",
+            "name": "handleFileSelect",
+            "startLine": 256,
+            "endLine": 279
+          },
+          {
+            "type": "function",
+            "name": "updateFilePreview",
+            "startLine": 282,
+            "endLine": 304
+          },
+          {
+            "type": "function",
+            "name": "getAllFilesFromStructure",
+            "startLine": 368,
+            "endLine": 385
+          }
+        ],
+        "file_hash": "daa44d5667aa2d6422bd5fc57b9808a1"
+      },
+      "cli.tsx": {
+        "type": "file_structure",
+        "filePath": "source/cli.tsx",
+        "items": [
+          {
+            "type": "function",
+            "name": "generateDocs",
+            "startLine": 38,
+            "endLine": 62
+          }
+        ],
+        "file_hash": "828343fed4897c8b0379d6757419cde4"
+      },
+      "components": {
+        "FileTree.tsx": {
+          "type": "file_structure",
+          "filePath": "source/components/FileTree.tsx",
+          "items": [
+            {
+              "type": "function",
+              "name": "flattenTree",
+              "startLine": 22,
+              "endLine": 33
+            },
+            {
+              "type": "function",
+              "name": "FileTree",
+              "startLine": 35,
+              "endLine": 85
+            },
+            {
+              "type": "function",
+              "name": "renderItem",
+              "startLine": 60,
+              "endLine": 78
+            }
+          ],
+          "file_hash": "406f2bc947066cbcdb6c59b5da4222c5"
+        },
+        "LoadingCat.tsx": {
+          "type": "file_structure",
+          "filePath": "source/components/LoadingCat.tsx",
+          "items": [
+            {
+              "type": "function",
+              "name": "LoadingCat",
+              "startLine": 55,
+              "endLine": 77
+            }
+          ],
+          "file_hash": "b7cb33cd9dd00de990f8549dc8ec1ce2"
+        }
+      },
       "services": {
         "DocManager.ts": {
           "type": "file_structure",
@@ -16,85 +145,255 @@
               "type": "class",
               "name": "DocManager",
               "startLine": 44,
-              "endLine": 293,
+              "endLine": 309,
               "children": [
                 {
                   "type": "method",
                   "name": "constructor",
                   "startLine": 58,
-                  "endLine": 88
+                  "endLine": 91
                 },
                 {
                   "type": "method",
                   "name": "normalizePath",
-                  "startLine": 90,
-                  "endLine": 93
+                  "startLine": 93,
+                  "endLine": 96
                 },
                 {
                   "type": "method",
                   "name": "loadDocs",
-                  "startLine": 95,
-                  "endLine": 108
+                  "startLine": 98,
+                  "endLine": 111
                 },
                 {
                   "type": "method",
                   "name": "saveDocs",
-                  "startLine": 111,
-                  "endLine": 115
+                  "startLine": 113,
+                  "endLine": 117
                 },
                 {
                   "type": "method",
                   "name": "getChangedFiles",
-                  "startLine": 117,
-                  "endLine": 124
+                  "startLine": 119,
+                  "endLine": 122
                 },
                 {
                   "type": "method",
                   "name": "getFilePreview",
-                  "startLine": 126,
-                  "endLine": 135
+                  "startLine": 124,
+                  "endLine": 133
                 },
                 {
                   "type": "method",
                   "name": "shouldIgnoreFile",
-                  "startLine": 137,
-                  "endLine": 139
+                  "startLine": 135,
+                  "endLine": 137
                 },
                 {
                   "type": "method",
                   "name": "processFileBatch",
-                  "startLine": 141,
+                  "startLine": 139,
                   "endLine": 168
                 },
                 {
                   "type": "method",
                   "name": "generateAllDocumentation",
                   "startLine": 170,
-                  "endLine": 187
+                  "endLine": 193
                 },
                 {
                   "type": "method",
                   "name": "generateDocumentation",
-                  "startLine": 189,
-                  "endLine": 254
+                  "startLine": 195,
+                  "endLine": 264
                 },
                 {
                   "type": "method",
                   "name": "generateHtml",
-                  "startLine": 256,
-                  "endLine": 288
+                  "startLine": 266,
+                  "endLine": 304
                 },
                 {
                   "type": "method",
                   "name": "getDocumentation",
-                  "startLine": 290,
-                  "endLine": 292
+                  "startLine": 306,
+                  "endLine": 308
                 }
               ]
             }
           ],
-          "file_hash": "02166d3209843bfac7cb1907d7ec3a60"
+          "file_hash": "4f179344533527fb57f5920f34d366d2"
+        },
+        "DocStringManager.ts": {
+          "type": "file_structure",
+          "filePath": "source/services/DocStringManager.ts",
+          "items": [
+            {
+              "type": "function",
+              "name": "debugLog",
+              "startLine": 33,
+              "endLine": 43
+            },
+            {
+              "type": "function",
+              "name": "generateDocStrings",
+              "startLine": 51,
+              "endLine": 85
+            },
+            {
+              "type": "function",
+              "name": "generateDocstringsForFile",
+              "startLine": 93,
+              "endLine": 168
+            }
+          ],
+          "file_hash": "8c7a4bbfccab47345de7457272de6be5"
         }
+      },
+      "treesitter.ts": {
+        "type": "file_structure",
+        "filePath": "source/treesitter.ts",
+        "items": [
+          {
+            "type": "function",
+            "name": "debugLog",
+            "startLine": 53,
+            "endLine": 70
+          },
+          {
+            "type": "function",
+            "name": "getLanguageAndQueryScheme",
+            "startLine": 77,
+            "endLine": 109
+          },
+          {
+            "type": "function",
+            "name": "parseFile",
+            "startLine": 111,
+            "endLine": 143
+          },
+          {
+            "type": "function",
+            "name": "generateHash",
+            "startLine": 145,
+            "endLine": 147
+          },
+          {
+            "type": "function",
+            "name": "getCachePath",
+            "startLine": 151,
+            "endLine": 155
+          },
+          {
+            "type": "function",
+            "name": "getTreeJsonPath",
+            "startLine": 157,
+            "endLine": 161
+          },
+          {
+            "type": "function",
+            "name": "loadCache",
+            "startLine": 163,
+            "endLine": 174
+          },
+          {
+            "type": "function",
+            "name": "saveCache",
+            "startLine": 176,
+            "endLine": 185
+          },
+          {
+            "type": "function",
+            "name": "findFileInTree",
+            "startLine": 187,
+            "endLine": 218
+          },
+          {
+            "type": "function",
+            "name": "search",
+            "startLine": 193,
+            "endLine": 216
+          },
+          {
+            "type": "function",
+            "name": "updateFileInTree",
+            "startLine": 220,
+            "endLine": 258
+          },
+          {
+            "type": "function",
+            "name": "searchAndUpdate",
+            "startLine": 229,
+            "endLine": 254
+          },
+          {
+            "type": "function",
+            "name": "loadExistingTree",
+            "startLine": 260,
+            "endLine": 271
+          },
+          {
+            "type": "function",
+            "name": "hasFileChanged",
+            "startLine": 273,
+            "endLine": 290
+          },
+          {
+            "type": "function",
+            "name": "getQueryForLanguage",
+            "startLine": 347,
+            "endLine": 377
+          },
+          {
+            "type": "function",
+            "name": "updateFileHashes",
+            "startLine": 379,
+            "endLine": 420
+          },
+          {
+            "type": "function",
+            "name": "extractStructure",
+            "startLine": 423,
+            "endLine": 640
+          },
+          {
+            "type": "function",
+            "name": "isDirectoryTree",
+            "startLine": 643,
+            "endLine": 645
+          },
+          {
+            "type": "function",
+            "name": "isFileStructure",
+            "startLine": 648,
+            "endLine": 655
+          },
+          {
+            "type": "function",
+            "name": "getNodeFromExistingTree",
+            "startLine": 658,
+            "endLine": 690
+          },
+          {
+            "type": "function",
+            "name": "buildTreeRecursive",
+            "startLine": 693,
+            "endLine": 802
+          },
+          {
+            "type": "function",
+            "name": "generateDirectoryTreeJson",
+            "startLine": 817,
+            "endLine": 933
+          },
+          {
+            "type": "function",
+            "name": "monitorDirectoryChanges",
+            "startLine": 945,
+            "endLine": 996
+          }
+        ],
+        "file_hash": "caa31599c9975d01d14259ff3bde1071"
       }
     }
   }
