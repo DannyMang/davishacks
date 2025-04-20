@@ -12,7 +12,7 @@
         </head>
         <body>
             <h1>Project Documentation</h1>
-            <p>Last updated: 2025-04-19T23:54:57.557Z</p>
+            <p>Last updated: 2025-04-20T00:31:31.716Z</p>
             
                 <div class="file">
                     <h2>davishacks/api/flash.ts</h2>
@@ -77,6 +77,110 @@ async function main() {
 }
 
 main();</code></pre>
+                </div>
+            
+
+                <div class="file">
+                    <h2>davishacks/source/cli.tsx</h2>
+                    <div class="summary">
+                        <h3>Summary</h3>
+                        <p>This TypeScript (TSX) file is a command-line interface (CLI) application named `davishacks` for generating documentation, likely for code.
+
+**Main Purpose:**
+
+The primary goal is to provide a tool for browsing and generating documentation, either interactively via a text-based user interface (TUI) or automatically for changed files within a project.
+
+**Key Functions:**
+
+*   **`meow` Initialization:**  Uses the `meow` library to parse command-line arguments and define the CLI's usage, commands (browse, generate), and options (e.g., `--path`). The `--path` flag specifies the project directory, defaulting to the current working directory.
+*   **Command Dispatch:** Determines which command to execute based on user input (defaulting to `browse`).
+*   **`generateDocs(workspacePath: string)`:**  This asynchronous function handles the `generate` command. It uses the `DocManager` service to:
+    *   Log messages to the console regarding progress.
+    *   Instantiate a `DocManager` with the specified workspace path.
+    *   Identify changed files using `docManager.getChangedFiles()`.
+    *   Generate documentation for each changed file using `docManager.generateDocumentation(file)`.
+    *   Generate an HTML version of the documentation using `docManager.generateHtml()`.
+    *   Provide output on successful generation or errors.
+*   **`render(<App path={cli.flags.path} />)`:** If the command is not `generate` (implicitly `browse`), it renders a React component named `App` using the `ink` library. This component likely provides the interactive browsing functionality.
+
+**Important Details:**
+
+*   **`DocManager`:** This service (defined in `./services/DocManager.js`) is responsible for the core documentation generation logic, including identifying changed files, processing files, and generating the final output (likely markdown files and HTML for viewing in a browser).  The exact implementation details are hidden, but the code shows it has `getChangedFiles()`, `generateDocumentation(file)`, and `generateHtml()` methods.
+*   **`ink` Library:**  `ink` is a library for building interactive command-line applications using React. It's used to render the `App` component.
+*   **Error Handling:**  The `generateDocs` function includes `try...catch` block to handle potential errors during documentation generation and exit the process with an error code if something goes wrong.
+*   **Dependency on React:** The file uses react to render the UI, so it depends on React.
+</p>
+                    </div>
+                    <h3>Source Code</h3>
+                    <pre><code>#!/usr/bin/env node
+import React from 'react';
+import {render} from 'ink';
+import meow from 'meow';
+import App from './app.js';
+import { DocManager } from './services/DocManager.js';
+
+const cli = meow(
+	`
+	Usage
+	  $ davishacks [command]
+
+	Commands
+		browse          Browse and generate documentation interactively (default)
+		generate        Generate documentation for changed files
+
+	Options
+		--path  Path to the project directory (defaults to current directory)
+
+	Examples
+	  $ davishacks                    # Browse files interactively
+	  $ davishacks generate          # Generate docs for changed files
+	  $ davishacks --path=/path/to/project
+`,
+	{
+		importMeta: import.meta,
+		flags: {
+			path: {
+				type: 'string',
+				default: process.cwd()
+			}
+		}
+	}
+);
+
+const [command = 'browse'] = cli.input;
+
+async function generateDocs(workspacePath: string) {
+	try {
+		console.log('Generating documentation for changed files...');
+		const docManager = new DocManager(workspacePath);
+		const changedFiles = await docManager.getChangedFiles();
+		
+		if (changedFiles.length === 0) {
+			console.log('No changed files found.');
+			return;
+		}
+
+		console.log(`Found ${changedFiles.length} changed files.`);
+		for (const file of changedFiles) {
+			console.log(`Processing ${file}...`);
+			await docManager.generateDocumentation(file);
+		}
+
+		await docManager.generateHtml();
+		console.log('Documentation generated successfully!');
+		console.log('You can view the HTML documentation in docs/html/index.html');
+	} catch (error) {
+		console.error('Error generating documentation:', error);
+		process.exit(1);
+	}
+}
+
+if (command === 'generate') {
+	generateDocs(cli.flags.path);
+} else {
+	render(&lt;App path={cli.flags.path} /&gt;);
+}
+</code></pre>
                 </div>
             
         </body>

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Text } from 'ink';
-import { FileTree } from './components/FileTree.js';
-import fs from 'node:fs';
-import path from 'node:path';
-import { DocManager } from './services/DocManager.js';
+import React, {useState, useEffect} from 'react';
+import {Box, Text} from 'ink';
+import {FileTree} from './components/FileTree.js';
+import * as fs from 'fs';
+import * as path from 'path';
+import {DocManager} from './services/DocManager.js';
+import {generateDirectoryTreeJson} from './treesitter.js';
+import Parser from 'tree-sitter';
 
 interface FileNode {
 	name: string;
@@ -20,15 +22,25 @@ const IGNORED_DIRS = new Set([
 	'.git',
 	'coverage',
 	'.next',
-	'.cache'
+	'.cache',
 ]);
 
 // File extensions we're interested in
 const INTERESTING_EXTENSIONS = new Set([
-	'.js', '.jsx', '.ts', '.tsx',
-	'.py', '.rb', '.java', '.go',
-	'.cpp', '.c', '.h', '.hpp',
-	'.md', '.txt'
+	'.js',
+	'.jsx',
+	'.ts',
+	'.tsx',
+	'.py',
+	'.rb',
+	'.java',
+	'.go',
+	'.cpp',
+	'.c',
+	'.h',
+	'.hpp',
+	'.md',
+	'.txt',
 ]);
 
 const DEBUG = true;
@@ -39,10 +51,13 @@ const LOG_FILE = path.join(LOGS_DIR, 'davishacks-debug.log');
 try {
 	// Create logs directory if it doesn't exist
 	if (!fs.existsSync(LOGS_DIR)) {
-		fs.mkdirSync(LOGS_DIR, { recursive: true });
+		fs.mkdirSync(LOGS_DIR, {recursive: true});
 	}
 	// Clear/create the log file
-	fs.writeFileSync(LOG_FILE, `=== New Session Started at ${new Date().toISOString()} ===\n`);
+	fs.writeFileSync(
+		LOG_FILE,
+		`=== New Session Started at ${new Date().toISOString()} ===\n`,
+	);
 } catch (error) {
 	console.error('Failed to initialize logging:', error);
 }
@@ -86,7 +101,7 @@ const readDirectory = (dirPath: string, level = 0): FileNode => {
 				return {
 					name,
 					type: 'directory',
-					children: []
+					children: [],
 				};
 			}
 
@@ -101,18 +116,23 @@ const readDirectory = (dirPath: string, level = 0): FileNode => {
 					return readDirectory(fullPath, level + 1);
 				})
 				.filter(child => {
-					if (child.type === 'directory' && (!child.children || child.children.length === 0)) {
+					if (
+						child.type === 'directory' &&
+						(!child.children || child.children.length === 0)
+					) {
 						debugLog(`${indent}  Skipping empty directory: ${child.name}`);
 						return false;
 					}
 					return true;
 				});
 
-			debugLog(`${indent}Directory ${name} has ${children.length} valid children`);
+			debugLog(
+				`${indent}Directory ${name} has ${children.length} valid children`,
+			);
 			return {
 				name,
 				type: 'directory',
-				children
+				children,
 			};
 		}
 
@@ -123,7 +143,7 @@ const readDirectory = (dirPath: string, level = 0): FileNode => {
 			return {
 				name,
 				type: 'file',
-				documentation: 'Not a supported file type'
+				documentation: 'Not a supported file type',
 			};
 		}
 
@@ -132,15 +152,14 @@ const readDirectory = (dirPath: string, level = 0): FileNode => {
 			name,
 			type: 'file',
 			documentation: 'Documentation will be generated here',
-			preview: getFilePreview(dirPath)
+			preview: getFilePreview(dirPath),
 		};
-
 	} catch (error) {
 		debugLog(`${indent}Error processing ${dirPath}: ${error}`);
 		return {
 			name,
 			type: 'file',
-			documentation: `Error: ${error}`
+			documentation: `Error: ${error}`,
 		};
 	}
 };
@@ -149,27 +168,36 @@ interface AppProps {
 	path?: string;
 }
 
-const App: React.FC<AppProps> = ({ path: workspacePath = process.cwd() }) => {
+const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	const [fileStructure, setFileStructure] = useState<FileNode | null>(null);
 	const [selectedFile, setSelectedFile] = useState<string | null>(null);
-	const [selectedFileContent, setSelectedFileContent] = useState<string | null>(null);
+	const [selectedFileContent, setSelectedFileContent] = useState<string | null>(
+		null,
+	);
 	const [selectedFileDocs, setSelectedFileDocs] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const [docManager] = useState(() => new DocManager(workspacePath));
 
+	const parser = new Parser();
+
 	useEffect(() => {
+		generateDirectoryTreeJson(process.cwd(), parser);
 		debugLog('=== Starting file scan ===');
 		debugLog(`Current directory: ${process.cwd()}`);
 		debugLog(`Target path: ${workspacePath}`);
 
 		try {
 			// Normalize the workspace path to handle nested davishacks directory
-			const normalizedPath = workspacePath.replace(/davishacks\/davishacks/, 'davishacks');
+			const normalizedPath = workspacePath.replace(
+				/davishacks\/davishacks/,
+				'davishacks',
+			);
 			const structure = readDirectory(normalizedPath);
 			debugLog('File scan completed successfully');
 			setFileStructure(structure);
 		} catch (err) {
-			const errorMsg = err instanceof Error ? err.message : 'Failed to read directory';
+			const errorMsg =
+				err instanceof Error ? err.message : 'Failed to read directory';
 			debugLog(`Error during file scan: ${errorMsg}`);
 			setError(errorMsg);
 		}
@@ -179,8 +207,11 @@ const App: React.FC<AppProps> = ({ path: workspacePath = process.cwd() }) => {
 		setSelectedFile(filePath);
 		try {
 			// Normalize the file path
-			const normalizedPath = filePath.replace(/davishacks\/davishacks/, 'davishacks');
-			
+			const normalizedPath = filePath.replace(
+				/davishacks\/davishacks/,
+				'davishacks',
+			);
+
 			// Get or generate documentation
 			let doc = docManager.getDocumentation(normalizedPath);
 			if (!doc) {
@@ -190,7 +221,8 @@ const App: React.FC<AppProps> = ({ path: workspacePath = process.cwd() }) => {
 			setSelectedFileContent(doc.content);
 			setSelectedFileDocs(doc.summary);
 		} catch (err) {
-			const errorMsg = err instanceof Error ? err.message : 'Failed to generate documentation';
+			const errorMsg =
+				err instanceof Error ? err.message : 'Failed to generate documentation';
 			debugLog(`Error generating documentation: ${errorMsg}`);
 			setError(errorMsg);
 		}
@@ -219,7 +251,7 @@ const App: React.FC<AppProps> = ({ path: workspacePath = process.cwd() }) => {
 			</Box>
 			<Box>
 				<Box width="50%" marginRight={2}>
-					<FileTree 
+					<FileTree
 						files={fileStructure}
 						onSelect={handleFileSelect}
 						selectedFile={selectedFile}
