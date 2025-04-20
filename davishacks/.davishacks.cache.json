@@ -1,0 +1,41 @@
+{
+  "files": {
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/api/flash.ts": {
+      "file_hash": "7033911206044838a6c6c7fed2912d4f",
+      "lastParsed": 1745126748539
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/app.tsx": {
+      "file_hash": "f676237e82500bd482c890db4a19772b",
+      "lastParsed": 1745126748539
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/cli.tsx": {
+      "file_hash": "828343fed4897c8b0379d6757419cde4",
+      "lastParsed": 1745126748539
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/components/FileTree.tsx": {
+      "file_hash": "ca7f145f5725c9749721a8ccde1832cb",
+      "lastParsed": 1745126748539
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/components/LoadingCat.tsx": {
+      "file_hash": "b7cb33cd9dd00de990f8549dc8ec1ce2",
+      "lastParsed": 1745126748539
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/services/DocManager.ts": {
+      "file_hash": "b87c9e2001f81669d3e52586c7e25529",
+      "lastParsed": 1745126748539
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/treesitter.ts": {
+      "file_hash": "22c46399157b05f82886243eae9638bd",
+      "lastParsed": 1745126748539
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/source/types/docs.ts": {
+      "file_hash": "7e5e70d1521688e38a197199b3ad6da3",
+      "lastParsed": 1745126748551
+    },
+    "/Users/ryannguyen/projects/typescript/davishacks/davishacks/test.tsx": {
+      "file_hash": "c485b6db6529bbd45f5086b07302864b",
+      "lastParsed": 1745126748551
+    }
+  },
+  "lastUpdated": 1745126748551
+}
