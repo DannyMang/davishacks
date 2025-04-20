@@ -73,13 +73,6 @@ export const FileTree: React.FC<FileTreeProps> = ({
                     {prefix}{icon} {item.node.name}
                     {isFocusedItem && item.node.type === 'file' ? ' (Press Enter or Space)' : ''}
                 </Text>
-                {isSelected && item.node.type === 'file' && item.node.preview && (
-                    <Box marginLeft={2}>
-                        <Text dimColor>
-                            {item.node.preview}
-                        </Text>
-                    </Box>
-                )}
             </Box>
         );
     };

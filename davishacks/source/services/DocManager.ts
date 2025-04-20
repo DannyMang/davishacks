@@ -48,13 +48,25 @@ export class DocManager {
     private genAI: GoogleGenAI;
     private projectDocs: ProjectDocumentation;
     private workspacePath: string;
+    private readonly BATCH_SIZE = 5; // Number of concurrent API calls
+    private readonly IGNORED_PATTERNS = [
+        /\.json$/,          // Skip JSON files
+        /docs\/files\//,    // Skip documentation files
+        /docs\/html\//      // Skip generated HTML
+    ];
 
     constructor(workspacePath: string) {
         debugLog(`Initializing DocManager with workspace path: ${workspacePath}`);
-        this.workspacePath = workspacePath;
-        this.docsPath = path.join(workspacePath, 'docs');
+        // Remove any duplicate davishacks from the workspace path and ensure we're in the right directory
+        this.workspacePath = workspacePath.replace(/davishacks\/davishacks/, 'davishacks');
+        if (!this.workspacePath.endsWith('davishacks')) {
+            this.workspacePath = path.join(this.workspacePath, 'davishacks');
+        }
+        
+        // Always create docs in the davishacks directory
+        this.docsPath = path.join(this.workspacePath, 'docs');
         this.htmlPath = path.join(this.docsPath, 'html');
-        this.git = simpleGit(workspacePath);
+        this.git = simpleGit(this.workspacePath);
         
         // Initialize Google Gemini
         if (!apiKey) {
@@ -67,11 +79,17 @@ export class DocManager {
             debugLog(`Creating docs directory at: ${this.docsPath}`);
             fs.mkdirSync(this.docsPath, { recursive: true });
             fs.mkdirSync(this.htmlPath, { recursive: true });
+            fs.mkdirSync(path.join(this.docsPath, 'files'), { recursive: true });
         }
 
         // Load or initialize project documentation
         this.projectDocs = this.loadDocs();
         debugLog('DocManager initialization complete');
+    }
+
+    private normalizePath(filePath: string): string {
+        // Remove any leading davishacks/ from the file path
+        return filePath.replace(/^davishacks\/+/, '');
     }
 
     private loadDocs(): ProjectDocumentation {
@@ -116,14 +134,65 @@ export class DocManager {
         }
     }
 
+    private shouldIgnoreFile(filePath: string): boolean {
+        return this.IGNORED_PATTERNS.some(pattern => pattern.test(filePath));
+    }
+
+    private async processFileBatch(files: string[]): Promise<void> {
+        const promises = files.map(async (file) => {
+            try {
+                if (this.shouldIgnoreFile(file)) {
+                    debugLog(`Ignoring file: ${file}`);
+                    return;
+                }
+
+                // Check if file has changed since last documentation
+                const existingDoc = this.getDocumentation(file);
+                if (existingDoc) {
+                    const stats = fs.statSync(path.join(this.workspacePath, this.normalizePath(file)));
+                    const lastModified = new Date(stats.mtime).toISOString();
+                    
+                    if (lastModified <= existingDoc.lastUpdated) {
+                        debugLog(`Skipping unchanged file: ${file}`);
+                        return;
+                    }
+                }
+
+                await this.generateDocumentation(file);
+            } catch (error) {
+                debugLog(`Error processing file ${file}: ${error}`);
+            }
+        });
+
+        await Promise.all(promises);
+    }
+
+    async generateAllDocumentation(files: string[]): Promise<void> {
+        debugLog('Starting bulk documentation generation');
+        
+        // Filter out files we should ignore
+        const filesToProcess = files.filter(file => !this.shouldIgnoreFile(file));
+        debugLog(`Processing ${filesToProcess.length} files out of ${files.length} total files`);
+
+        // Process files in batches
+        for (let i = 0; i < filesToProcess.length; i += this.BATCH_SIZE) {
+            const batch = filesToProcess.slice(i, i + this.BATCH_SIZE);
+            debugLog(`Processing batch ${i / this.BATCH_SIZE + 1} of ${Math.ceil(filesToProcess.length / this.BATCH_SIZE)}`);
+            await this.processFileBatch(batch);
+        }
+
+        // Save all documentation at once
+        this.saveDocs();
+        debugLog('Bulk documentation generation complete');
+    }
 
     async generateDocumentation(filePath: string): Promise<FileDocumentation> {
         try {
             debugLog(`Generating documentation for file: ${filePath}`);
             debugLog(`Workspace path: ${this.workspacePath}`);
             
-            // Remove any leading davishacks from the file path
-            const normalizedFilePath = filePath.replace(/^davishacks\//, '');
+            // Normalize the file path
+            const normalizedFilePath = this.normalizePath(filePath);
             
             // Convert relative path to absolute path
             const absolutePath = path.join(this.workspacePath, normalizedFilePath);
@@ -170,13 +239,10 @@ export class DocManager {
             };
 
             this.projectDocs.files[filePath] = doc;
-            this.projectDocs.lastUpdated = new Date().toISOString();
-            this.saveDocs();
 
-            // Also save individual file documentation
+            // Save individual file documentation
             const fileDocPath = path.join(this.docsPath, 'files', `${path.basename(filePath)}.json`);
             debugLog(`Saving individual file documentation to: ${fileDocPath}`);
-            fs.mkdirSync(path.dirname(fileDocPath), { recursive: true });
             fs.writeFileSync(fileDocPath, JSON.stringify(doc, null, 2));
 
             debugLog(`Documentation generated successfully for: ${filePath}`);
@@ -185,31 +251,6 @@ export class DocManager {
             debugLog(`Error generating documentation for ${filePath}: ${error}`);
             throw error;
         }
-    }
-
-    async generateAllDocumentation(files: string[]): Promise<void> {
-        debugLog('Starting bulk documentation generation');
-        for (const file of files) {
-            try {
-                // Check if file has changed since last documentation
-                const existingDoc = this.getDocumentation(file);
-                if (existingDoc) {
-                    const stats = fs.statSync(path.join(this.workspacePath, file.replace(/^davishacks\//, '')));
-                    const lastModified = new Date(stats.mtime).toISOString();
-                    
-                    if (lastModified <= existingDoc.lastUpdated) {
-                        debugLog(`Skipping unchanged file: ${file}`);
-                        continue;
-                    }
-                }
-                
-                await this.generateDocumentation(file);
-            } catch (error) {
-                debugLog(`Error generating documentation for ${file}: ${error}`);
-                // Continue with other files even if one fails
-            }
-        }
-        debugLog('Bulk documentation generation complete');
     }
 
     async generateHtml() {

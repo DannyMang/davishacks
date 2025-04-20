@@ -179,7 +179,11 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	const [error, setError] = useState<string | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
 	const [loadingMessage, setLoadingMessage] = useState('Initializing...');
-	const [docManager] = useState(() => new DocManager(workspacePath));
+	const [docManager] = useState(() => {
+		// Remove any duplicate davishacks from the workspace path
+		const normalizedPath = workspacePath.replace(/davishacks\/davishacks/, 'davishacks');
+		return new DocManager(normalizedPath);
+	});
 
 	const parser = new Parser();
 
@@ -263,6 +267,8 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 				err instanceof Error ? err.message : 'Failed to load documentation';
 			debugLog(`Error loading documentation: ${errorMsg}`);
 			setError(errorMsg);
+			setSelectedFileContent('Error loading preview');
+			setSelectedFileDocs('Error loading documentation');
 		}
 	};
 
@@ -339,7 +345,7 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 							<Box marginTop={1} flexDirection="column">
 								<Text bold>Preview:</Text>
 								<Box marginLeft={1} marginTop={1}>
-									<Text>{selectedFileContent || 'No preview available'}</Text>
+									<Text dimColor>{selectedFileContent?.split('\n').slice(0, 5).join('\n')}</Text>
 								</Box>
 							</Box>
 						</>

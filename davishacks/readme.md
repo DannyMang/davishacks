@@ -23,3 +23,18 @@ $ davishacks --help
     $ davishacks --name=Jane
     Hello, Jane
 ```
+
+# DavisHacks Documentation Tool
+
+## Documentation
+
+The tool generates documentation in the `docs/` directory, which is gitignored. This includes:
+- `docs/files/`: Individual file documentation in JSON format
+- `docs/html/`: Generated HTML documentation
+- `docs/docs.json`: Combined documentation for all files
+
+These files are automatically generated and should not be committed to the repository.
+
+## Development
+
+...
