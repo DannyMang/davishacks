@@ -6,6 +6,7 @@ import * as path from 'path';
 import {DocManager} from './services/DocManager.js';
 import {generateDirectoryTreeJson} from './treesitter.js';
 import Parser from 'tree-sitter';
+import {LoadingCat} from './components/LoadingCat.js';
 
 interface FileNode {
 	name: string;
@@ -176,6 +177,8 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 	);
 	const [selectedFileDocs, setSelectedFileDocs] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [isLoading, setIsLoading] = useState(true);
+	const [loadingMessage, setLoadingMessage] = useState('Initializing...');
 	const [docManager] = useState(() => new DocManager(workspacePath));
 
 	const parser = new Parser();
@@ -185,6 +188,43 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 		debugLog('=== Starting file scan ===');
 		debugLog(`Current directory: ${process.cwd()}`);
 		debugLog(`Target path: ${workspacePath}`);
+
+		const initialize = async () => {
+			try {
+				debugLog('=== Starting initialization ===');
+				debugLog(`Current directory: ${process.cwd()}`);
+				debugLog(`Target path: ${workspacePath}`);
+
+				// Normalize the workspace path
+				const normalizedPath = workspacePath.replace(
+					/davishacks\/davishacks/,
+					'davishacks',
+				);
+				const structure = readDirectory(normalizedPath);
+				debugLog('File scan completed successfully');
+				setFileStructure(structure);
+
+				// Get all files that need documentation
+				const filesToDocument = getAllFilesFromStructure(structure);
+				setLoadingMessage(
+					`Generating documentation for ${filesToDocument.length} files...`,
+				);
+
+				// Generate documentation for all files
+				await docManager.generateAllDocumentation(filesToDocument);
+
+				setIsLoading(false);
+				debugLog('Initialization complete');
+			} catch (err) {
+				const errorMsg =
+					err instanceof Error ? err.message : 'Failed to initialize';
+				debugLog(`Error during initialization: ${errorMsg}`);
+				setError(errorMsg);
+				setIsLoading(false);
+			}
+		};
+
+		initialize();
 
 		try {
 			// Normalize the workspace path to handle nested davishacks directory
@@ -201,31 +241,54 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 			debugLog(`Error during file scan: ${errorMsg}`);
 			setError(errorMsg);
 		}
-	}, [workspacePath]);
+	}, [workspacePath, docManager]);
 
 	const handleFileSelect = async (filePath: string) => {
 		setSelectedFile(filePath);
 		try {
-			// Normalize the file path
-			const normalizedPath = filePath.replace(
-				/davishacks\/davishacks/,
-				'davishacks',
-			);
+			// Get existing documentation
+			const doc = docManager.getDocumentation(filePath);
+			if (doc) {
+				setSelectedFileContent(doc.content);
+				setSelectedFileDocs(doc.summary);
 
-			// Get or generate documentation
-			let doc = docManager.getDocumentation(normalizedPath);
-			if (!doc) {
-				doc = await docManager.generateDocumentation(normalizedPath);
-				await docManager.generateHtml(); // Update HTML docs
+				// Update the file structure with the preview
+				setFileStructure(prevStructure => {
+					if (!prevStructure) return null;
+					return updateFilePreview(prevStructure, filePath, doc.preview);
+				});
 			}
-			setSelectedFileContent(doc.content);
-			setSelectedFileDocs(doc.summary);
 		} catch (err) {
 			const errorMsg =
-				err instanceof Error ? err.message : 'Failed to generate documentation';
-			debugLog(`Error generating documentation: ${errorMsg}`);
+				err instanceof Error ? err.message : 'Failed to load documentation';
+			debugLog(`Error loading documentation: ${errorMsg}`);
 			setError(errorMsg);
 		}
+	};
+
+	// Helper function to update file preview in the structure
+	const updateFilePreview = (
+		node: FileNode,
+		targetPath: string,
+		preview: string,
+	): FileNode => {
+		if (node.type === 'file' && node.name === path.basename(targetPath)) {
+			return {
+				...node,
+				preview,
+			};
+		}
+
+		if (node.type === 'directory' && node.children) {
+			return {
+				...node,
+				children: node.children.map(child =>
+					updateFilePreview(child, targetPath, preview),
+				),
+			};
+		}
+
+		return node;
 	};
 
 	if (error) {
@@ -234,6 +297,10 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 				<Text color="red">Error: {error}</Text>
 			</Box>
 		);
+	}
+
+	if (isLoading) {
+		return <LoadingCat message={loadingMessage} />;
 	}
 
 	if (!fileStructure) {
@@ -281,6 +348,26 @@ const App: React.FC<AppProps> = ({path: workspacePath = process.cwd()}) => {
 			</Box>
 		</Box>
 	);
+};
+
+// Helper function to get all files from the file structure
+const getAllFilesFromStructure = (
+	node: FileNode,
+	currentPath = '',
+): string[] => {
+	const path = currentPath ? `${currentPath}/${node.name}` : node.name;
+
+	if (node.type === 'file') {
+		return [path];
+	}
+
+	if (node.type === 'directory' && node.children) {
+		return node.children.flatMap(child =>
+			getAllFilesFromStructure(child, path),
+		);
+	}
+
+	return [];
 };
 
 export default App;

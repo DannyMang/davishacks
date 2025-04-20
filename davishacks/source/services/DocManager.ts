@@ -88,6 +88,7 @@ export class DocManager {
             files: {}
         };
     }
+    
 
     private saveDocs() {
         const docsFile = path.join(this.docsPath, 'docs.json');
@@ -103,6 +104,18 @@ export class DocManager {
             ...status.created
         ];
     }
+
+    private getFilePreview(filePath: string): string {
+        try {
+            const content = fs.readFileSync(filePath, 'utf-8');
+            const lines = content.split('\n').slice(0, 5); // Get first 5 lines
+            return lines.join('\n') + (lines.length >= 5 ? '\n...' : '');
+        } catch (error) {
+            debugLog(`Error getting file preview for ${filePath}: ${error}`);
+            return 'Unable to read file content';
+        }
+    }
+
 
     async generateDocumentation(filePath: string): Promise<FileDocumentation> {
         try {
@@ -127,8 +140,16 @@ export class DocManager {
             const fileType = path.extname(absolutePath).slice(1);
             debugLog(`File type: ${fileType}`);
             
-            const prompt = `Please provide a concise technical summary of this ${fileType} code file, focusing on its main purpose, key functions, and important details:\n\n${content}`;
-            
+            // Generate a more concise summary focusing on methods and key functionality
+            const prompt = `Please provide a concise technical summary of this ${fileType} code file. Focus only on:
+            1. The main purpose of the file
+            2. Each method/function with a one-line description
+            3. Key data structures or types
+            Keep the summary under 200 words and use bullet points for clarity.
+
+            Code:
+            ${content}`;
+                        
             debugLog('Generating AI summary...');
             const response = await this.genAI.models.generateContent({
                 model: "gemini-2.0-flash",
@@ -144,7 +165,8 @@ export class DocManager {
                 content,
                 summary: summary || '',
                 type: fileType,
-                hash: (await this.git.revparse(['HEAD'])) || undefined
+                hash: (await this.git.revparse(['HEAD'])) || undefined,
+                preview: this.getFilePreview(absolutePath)
             };
 
             this.projectDocs.files[filePath] = doc;
@@ -163,6 +185,31 @@ export class DocManager {
             debugLog(`Error generating documentation for ${filePath}: ${error}`);
             throw error;
         }
+    }
+
+    async generateAllDocumentation(files: string[]): Promise<void> {
+        debugLog('Starting bulk documentation generation');
+        for (const file of files) {
+            try {
+                // Check if file has changed since last documentation
+                const existingDoc = this.getDocumentation(file);
+                if (existingDoc) {
+                    const stats = fs.statSync(path.join(this.workspacePath, file.replace(/^davishacks\//, '')));
+                    const lastModified = new Date(stats.mtime).toISOString();
+                    
+                    if (lastModified <= existingDoc.lastUpdated) {
+                        debugLog(`Skipping unchanged file: ${file}`);
+                        continue;
+                    }
+                }
+                
+                await this.generateDocumentation(file);
+            } catch (error) {
+                debugLog(`Error generating documentation for ${file}: ${error}`);
+                // Continue with other files even if one fails
+            }
+        }
+        debugLog('Bulk documentation generation complete');
     }
 
     async generateHtml() {
