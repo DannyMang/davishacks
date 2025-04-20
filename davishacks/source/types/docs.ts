@@ -5,6 +5,7 @@ export interface FileDocumentation {
     summary: string;
     type: string;
     hash?: string; // Git hash when last documented
+    preview: string;
 }
 
 export interface ProjectDocumentation {
