@@ -10,6 +10,7 @@ import Parser from 'tree-sitter';
 import {LoadingCat} from './components/LoadingCat.js';
 import {Menu, MenuOption} from './components/Menu.js';
 import {updateApiKey} from './services/ConfigMangagement.js';
+import ChatInterface from './components/ChatInterface.js';
 
 /**
  * Interface representing a node in the file tree.
@@ -514,13 +515,14 @@ const ChatMode: React.FC<{onBack: () => void}> = ({onBack}) => {
 	});
 
 	return (
-		<Box flexDirection="column">
-			<Box marginBottom={1}>
-				<Text bold>Chat with Codebase</Text>
-				<Text> (Press Ctrl+B to go back to menu)</Text>
-			</Box>
-			<Text>Chat feature coming soon...</Text>
-		</Box>
+		// <Box flexDirection="column">
+		// 	<Box marginBottom={1}>
+		// 		<Text bold>Chat with Codebase</Text>
+		// 		<Text> (Press Ctrl+B to go back to menu)</Text>
+		// 	</Box>
+		// 	<Text>Chat feature coming soon...</Text>
+		// </Box>
+		<ChatInterface />
 	);
 };
 
